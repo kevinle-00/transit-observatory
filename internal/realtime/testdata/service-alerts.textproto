@@ -1,0 +1,45 @@
+header: {
+  gtfs_realtime_version: "2.0"
+  incrementality: FULL_DATASET
+  timestamp: 1753243200
+}
+entity: {
+  id: "metro-alert-123"
+  alert: {
+    active_period: {
+      start: 1753243200
+      end: 1753246800
+    }
+    informed_entity: {
+      route_id: "2-ALM-bus"
+      route_type: 2
+      stop_id: "place-alm"
+      direction_id: 0
+    }
+    cause: TECHNICAL_PROBLEM
+    effect: SIGNIFICANT_DELAYS
+    url: {
+      translation: {
+        text: "https://example.test/alerts/123"
+        language: "en"
+      }
+    }
+    header_text: {
+      translation: {
+        text: "Delays on the Alamein Line"
+        language: "en"
+      }
+    }
+    description_text: {
+      translation: {
+        text: "Allow an additional 20 minutes."
+        language: "en"
+      }
+    }
+    severity_level: SEVERE
+  }
+}
+entity: {
+  id: "deleted-entity"
+  is_deleted: true
+}
