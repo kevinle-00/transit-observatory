@@ -7,16 +7,16 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/kevinle-00/transit-observatory/internal/config"
 	"github.com/kevinle-00/transit-observatory/internal/realtime"
 )
-
-const defaultAPIKeyHeader = "KeyID"
 
 type dryRunReport struct {
 	SourceURL   string               `json:"source_url"`
@@ -30,14 +30,15 @@ type dryRunReport struct {
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 
-	if err := run(ctx, os.Args[1:], os.Getenv, os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "worker:", err)
+	if err := run(ctx, os.Args[1:], os.Getenv, os.Stdout, logger); err != nil {
+		logger.Error("worker failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string, getenv func(string) string, output io.Writer) error {
+func run(ctx context.Context, args []string, getenv func(string) string, output io.Writer, logger *slog.Logger) error {
 	if len(args) == 0 {
 		return errors.New("usage: worker ingest-alerts --dry-run")
 	}
@@ -58,29 +59,18 @@ func run(ctx context.Context, args []string, getenv func(string) string, output 
 		return errors.New("persistence is not implemented; run ingest-alerts with --dry-run")
 	}
 
-	timeout := 15 * time.Second
-	if value := getenv("TRANSIT_HTTP_TIMEOUT"); value != "" {
-		parsed, err := time.ParseDuration(value)
-		if err != nil || parsed <= 0 {
-			return fmt.Errorf("TRANSIT_HTTP_TIMEOUT must be a positive Go duration: %q", value)
-		}
-		timeout = parsed
-	}
-	url := getenv("TRANSIT_ALERTS_URL")
-	if url == "" {
-		url = realtime.DefaultAlertsURL
-	}
-	header := getenv("TRANSIT_API_KEY_HEADER")
-	if header == "" {
-		header = defaultAPIKeyHeader
+	workerConfig, err := config.LoadWorker(getenv)
+	if err != nil {
+		return err
 	}
 
 	client := realtime.Client{
-		HTTPClient:   &http.Client{Timeout: timeout},
-		URL:          url,
-		APIKey:       getenv("TRANSIT_API_KEY"),
-		APIKeyHeader: header,
+		HTTPClient:   &http.Client{Timeout: workerConfig.HTTPTimeout},
+		URL:          workerConfig.AlertsURL,
+		APIKey:       workerConfig.APIKey,
+		APIKeyHeader: workerConfig.APIKeyHeader,
 	}
+	logger.Info("fetching service alerts", "url", workerConfig.AlertsURL, "dry_run", true)
 	result, err := client.FetchAlerts(ctx)
 	if err != nil {
 		return err
@@ -91,7 +81,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, output 
 	}
 
 	report := dryRunReport{
-		SourceURL:   url,
+		SourceURL:   workerConfig.AlertsURL,
 		RetrievedAt: result.RetrievedAt,
 		HTTPStatus:  result.StatusCode,
 		ContentType: result.ContentType,
@@ -103,5 +93,12 @@ func run(ctx context.Context, args []string, getenv func(string) string, output 
 	if err := encoder.Encode(report); err != nil {
 		return fmt.Errorf("write dry-run report: %w", err)
 	}
+	logger.Info(
+		"service-alert dry run completed",
+		"entities", summary.EntityCount,
+		"alerts", summary.AlertCount,
+		"payload_bytes", len(result.Body),
+		"feed_timestamp", summary.Timestamp,
+	)
 	return nil
 }

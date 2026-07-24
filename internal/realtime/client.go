@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	DefaultAlertsURL = "https://api.opendata.transport.vic.gov.au/opendata/public-transport/gtfs/realtime/v1/metro/service-alerts"
-	maxPayloadBytes  = 32 << 20
-	maxErrorBytes    = 4 << 10
+	maxPayloadBytes = 32 << 20
+	maxErrorBytes   = 4 << 10
 )
 
 type HTTPClient interface {
