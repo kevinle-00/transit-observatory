@@ -62,6 +62,36 @@ func TestDecodeAlertsReportsUnknownFields(t *testing.T) {
 	if summary.UnknownFieldsBytes != 3 || summary.Alerts[0].UnknownFieldsBytes != 3 {
 		t.Errorf("unknown byte counts = feed %d, alert %d; want 3, 3", summary.UnknownFieldsBytes, summary.Alerts[0].UnknownFieldsBytes)
 	}
+	if summary.Alerts[0].UnknownFieldsHash == "" {
+		t.Error("alert unknown fields hash is empty")
+	}
+}
+
+func TestDecodeAlertsHashesUnknownFieldContent(t *testing.T) {
+	firstFeed := fixtureFeed(t)
+	firstFeed.Entity[0].Alert.ProtoReflect().SetUnknown([]byte{0xa0, 0x06, 0x01})
+	firstPayload, err := proto.Marshal(firstFeed)
+	if err != nil {
+		t.Fatalf("marshal first fixture: %v", err)
+	}
+	secondFeed := fixtureFeed(t)
+	secondFeed.Entity[0].Alert.ProtoReflect().SetUnknown([]byte{0xa0, 0x06, 0x02})
+	secondPayload, err := proto.Marshal(secondFeed)
+	if err != nil {
+		t.Fatalf("marshal second fixture: %v", err)
+	}
+
+	first, err := DecodeAlerts(firstPayload)
+	if err != nil {
+		t.Fatalf("DecodeAlerts(first) error = %v", err)
+	}
+	second, err := DecodeAlerts(secondPayload)
+	if err != nil {
+		t.Fatalf("DecodeAlerts(second) error = %v", err)
+	}
+	if first.Alerts[0].UnknownFieldsHash == second.Alerts[0].UnknownFieldsHash {
+		t.Errorf("different unknown field values have the same hash: %s", first.Alerts[0].UnknownFieldsHash)
+	}
 }
 
 func fixturePayload(t *testing.T) []byte {

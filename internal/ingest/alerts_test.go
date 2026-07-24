@@ -36,6 +36,26 @@ func TestAlertServiceCompletesSuccessfulRun(t *testing.T) {
 	}
 }
 
+func TestAlertServiceReportsSkippedRun(t *testing.T) {
+	store := &fakeAlertStore{runID: 43, skipped: true}
+	service := AlertService{
+		SourceURL: "https://example.test/alerts",
+		Fetcher:   fakeAlertFetcher{result: realtime.FetchResult{Body: []byte{1}}},
+		Store:     store,
+		Decode: func([]byte) (realtime.FeedSummary, error) {
+			return realtime.FeedSummary{Incrementality: "FULL_DATASET"}, nil
+		},
+	}
+
+	result, err := service.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !result.Skipped {
+		t.Error("Run() skipped = false, want true")
+	}
+}
+
 func TestAlertServiceRecordsFetchFailure(t *testing.T) {
 	store := &fakeAlertStore{runID: 7}
 	service := AlertService{
@@ -126,6 +146,7 @@ type fakeAlertStore struct {
 	sourceURL   string
 	completed   bool
 	failed      bool
+	skipped     bool
 	completeErr error
 }
 
@@ -155,7 +176,7 @@ func (s *fakeAlertStore) CompleteAlertRun(
 	_ int64,
 	_ realtime.FetchResult,
 	_ realtime.FeedSummary,
-) error {
+) (bool, error) {
 	s.completed = s.completeErr == nil
-	return s.completeErr
+	return s.skipped, s.completeErr
 }

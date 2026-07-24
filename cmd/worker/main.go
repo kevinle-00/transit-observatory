@@ -135,9 +135,13 @@ func runIngestAlerts(ctx context.Context, args []string, getenv func(string) str
 	if err != nil {
 		return fmt.Errorf("ingest service alerts: %w", err)
 	}
+	status := "succeeded"
+	if result.Skipped {
+		status = "skipped"
+	}
 	if err := writeJSON(output, ingestionReport{
 		RunID:         result.RunID,
-		Status:        "succeeded",
+		Status:        status,
 		RetrievedAt:   result.Fetch.RetrievedAt,
 		PayloadSize:   len(result.Fetch.Body),
 		FeedTimestamp: result.Summary.Timestamp,
@@ -149,6 +153,7 @@ func runIngestAlerts(ctx context.Context, args []string, getenv func(string) str
 	logger.Info(
 		"service-alert ingestion completed",
 		"ingestion_run_id", result.RunID,
+		"status", status,
 		"entities", result.Summary.EntityCount,
 		"alerts", result.Summary.AlertCount,
 		"payload_bytes", len(result.Fetch.Body),

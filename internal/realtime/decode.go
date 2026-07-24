@@ -1,8 +1,12 @@
 package realtime
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
+	"sort"
+	"strconv"
 	"time"
 
 	"github.com/MobilityData/gtfs-realtime-bindings/golang/gtfs"
@@ -33,6 +37,7 @@ type AlertSummary struct {
 	ActivePeriods      []ActivePeriod   `json:"active_periods,omitempty"`
 	InformedEntities   []InformedEntity `json:"informed_entities,omitempty"`
 	UnknownFieldsBytes int              `json:"unknown_fields_bytes"`
+	UnknownFieldsHash  string           `json:"unknown_fields_sha256,omitempty"`
 }
 
 type Translation struct {
@@ -104,6 +109,7 @@ func summarizeAlert(entity *gtfs.FeedEntity) AlertSummary {
 		Description:        translations(alert.GetDescriptionText()),
 		URL:                translations(alert.GetUrl()),
 		UnknownFieldsBytes: countUnknownFields(entity.ProtoReflect()),
+		UnknownFieldsHash:  unknownFieldsSHA256(entity.ProtoReflect()),
 	}
 	if alert.Cause != nil {
 		value := alert.GetCause().String()
@@ -193,4 +199,48 @@ func countUnknownFields(message protoreflect.Message) int {
 		return true
 	})
 	return count
+}
+
+func unknownFieldsSHA256(message protoreflect.Message) string {
+	var records []string
+	collectUnknownFields(message, string(message.Descriptor().FullName()), &records)
+	if len(records) == 0 {
+		return ""
+	}
+	sort.Strings(records)
+	hash := sha256.New()
+	for _, record := range records {
+		hash.Write([]byte(record))
+		hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func collectUnknownFields(message protoreflect.Message, path string, records *[]string) {
+	if unknown := message.GetUnknown(); len(unknown) > 0 {
+		*records = append(*records, path+":"+hex.EncodeToString(unknown))
+	}
+	fields := message.Descriptor().Fields()
+	for i := 0; i < fields.Len(); i++ {
+		field := fields.Get(i)
+		if field.Message() == nil || !message.Has(field) {
+			continue
+		}
+		fieldPath := path + "." + strconv.Itoa(int(field.Number()))
+		value := message.Get(field)
+		switch {
+		case field.IsList():
+			list := value.List()
+			for index := 0; index < list.Len(); index++ {
+				collectUnknownFields(list.Get(index).Message(), fieldPath+"[]", records)
+			}
+		case field.IsMap() && field.MapValue().Message() != nil:
+			value.Map().Range(func(key protoreflect.MapKey, item protoreflect.Value) bool {
+				collectUnknownFields(item.Message(), fieldPath+"["+key.String()+"]", records)
+				return true
+			})
+		default:
+			collectUnknownFields(value.Message(), fieldPath, records)
+		}
+	}
 }

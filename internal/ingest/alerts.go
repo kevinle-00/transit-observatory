@@ -16,13 +16,14 @@ type AlertFetcher interface {
 type AlertStore interface {
 	StartAlertRun(context.Context, string) (int64, error)
 	FailAlertRun(context.Context, int64, *realtime.FetchResult, *realtime.FeedSummary, error) error
-	CompleteAlertRun(context.Context, int64, realtime.FetchResult, realtime.FeedSummary) error
+	CompleteAlertRun(context.Context, int64, realtime.FetchResult, realtime.FeedSummary) (bool, error)
 }
 
 type AlertResult struct {
 	RunID   int64
 	Fetch   realtime.FetchResult
 	Summary realtime.FeedSummary
+	Skipped bool
 }
 
 type AlertService struct {
@@ -46,13 +47,14 @@ func (s AlertService) Run(ctx context.Context) (AlertResult, error) {
 	if err != nil {
 		return AlertResult{RunID: runID, Fetch: fetch}, s.fail(ctx, runID, &fetch, nil, err)
 	}
-	if err := s.Store.CompleteAlertRun(ctx, runID, fetch, summary); err != nil {
+	skipped, err := s.Store.CompleteAlertRun(ctx, runID, fetch, summary)
+	if err != nil {
 		if commitOutcomeUnknown(err) {
 			return AlertResult{RunID: runID, Fetch: fetch, Summary: summary}, err
 		}
 		return AlertResult{RunID: runID, Fetch: fetch, Summary: summary}, s.fail(ctx, runID, &fetch, &summary, err)
 	}
-	return AlertResult{RunID: runID, Fetch: fetch, Summary: summary}, nil
+	return AlertResult{RunID: runID, Fetch: fetch, Summary: summary, Skipped: skipped}, nil
 }
 
 func (s AlertService) fail(
