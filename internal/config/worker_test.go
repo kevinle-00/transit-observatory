@@ -71,6 +71,22 @@ func TestLoadWorkerValidation(t *testing.T) {
 			wantMessage: "scheme must be http or https",
 		},
 		{
+			name: "URL credentials",
+			values: map[string]string{
+				"TRANSIT_API_KEY":    "secret",
+				"TRANSIT_ALERTS_URL": "https://user:password@example.com/alerts",
+			},
+			wantMessage: "must not contain user credentials",
+		},
+		{
+			name: "URL query parameters",
+			values: map[string]string{
+				"TRANSIT_API_KEY":    "secret",
+				"TRANSIT_ALERTS_URL": "https://example.com/alerts?key=secret",
+			},
+			wantMessage: "must not contain query parameters",
+		},
+		{
 			name: "URL without host",
 			values: map[string]string{
 				"TRANSIT_API_KEY":    "secret",
@@ -119,6 +135,52 @@ func TestLoadWorkerReportsAllInvalidValues(t *testing.T) {
 		if !strings.Contains(err.Error(), message) {
 			t.Errorf("LoadWorker() error = %q, want %q", err, message)
 		}
+	}
+}
+
+func TestLoadDatabase(t *testing.T) {
+	config, err := LoadDatabase(environment(map[string]string{
+		"DATABASE_URL": "postgres://user:password@localhost:5432/transit?sslmode=disable",
+	}))
+	if err != nil {
+		t.Fatalf("LoadDatabase() error = %v", err)
+	}
+	if config.URL != "postgres://user:password@localhost:5432/transit?sslmode=disable" {
+		t.Errorf("URL = %q", config.URL)
+	}
+}
+
+func TestLoadDatabaseValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       string
+		wantMessage string
+	}{
+		{name: "missing", wantMessage: "DATABASE_URL is required"},
+		{name: "invalid scheme", value: "mysql://localhost/transit", wantMessage: "scheme must be postgres"},
+		{name: "missing host", value: "postgres:///transit", wantMessage: "host is required"},
+		{name: "missing database", value: "postgres://localhost", wantMessage: "database name is required"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := LoadDatabase(environment(map[string]string{"DATABASE_URL": test.value}))
+			if err == nil || !strings.Contains(err.Error(), test.wantMessage) {
+				t.Fatalf("LoadDatabase() error = %v, want message containing %q", err, test.wantMessage)
+			}
+		})
+	}
+}
+
+func TestLoadDatabaseDoesNotExposeMalformedURL(t *testing.T) {
+	_, err := LoadDatabase(environment(map[string]string{
+		"DATABASE_URL": "postgres://user:database-secret@localhost/%zz",
+	}))
+	if err == nil {
+		t.Fatal("LoadDatabase() error = nil")
+	}
+	if strings.Contains(err.Error(), "database-secret") {
+		t.Fatalf("LoadDatabase() exposed database credentials: %v", err)
 	}
 }
 

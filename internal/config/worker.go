@@ -20,6 +20,10 @@ type Worker struct {
 	HTTPTimeout  time.Duration
 }
 
+type Database struct {
+	URL string
+}
+
 func LoadWorker(getenv func(string) string) (Worker, error) {
 	config := Worker{
 		AlertsURL:    valueOrDefault(getenv("TRANSIT_ALERTS_URL"), defaultAlertsURL),
@@ -54,6 +58,27 @@ func LoadWorker(getenv func(string) string) (Worker, error) {
 	return config, nil
 }
 
+func LoadDatabase(getenv func(string) string) (Database, error) {
+	databaseURL := getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return Database{}, errors.New("invalid database configuration: DATABASE_URL is required")
+	}
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		return Database{}, errors.New("invalid database configuration: DATABASE_URL must be a valid URL")
+	}
+	if parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
+		return Database{}, errors.New("invalid database configuration: DATABASE_URL scheme must be postgres or postgresql")
+	}
+	if parsed.Host == "" {
+		return Database{}, errors.New("invalid database configuration: DATABASE_URL host is required")
+	}
+	if parsed.Path == "" || parsed.Path == "/" {
+		return Database{}, errors.New("invalid database configuration: DATABASE_URL database name is required")
+	}
+	return Database{URL: databaseURL}, nil
+}
+
 func valueOrDefault(value, fallback string) string {
 	if value == "" {
 		return fallback
@@ -71,6 +96,15 @@ func validateHTTPURL(value string) error {
 	}
 	if parsed.Host == "" {
 		return errors.New("host is required")
+	}
+	if parsed.User != nil {
+		return errors.New("must not contain user credentials")
+	}
+	if parsed.RawQuery != "" {
+		return errors.New("must not contain query parameters")
+	}
+	if parsed.Fragment != "" {
+		return errors.New("must not contain a fragment")
 	}
 	return nil
 }

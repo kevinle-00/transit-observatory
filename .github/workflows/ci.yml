@@ -12,6 +12,22 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: transit_observatory_test
+          POSTGRES_USER: transit
+          POSTGRES_PASSWORD: transit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U transit -d transit_observatory_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://transit:transit@localhost:5432/transit_observatory_test?sslmode=disable
 
     steps:
       - name: Check out repository
