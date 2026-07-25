@@ -11,6 +11,8 @@ const (
 	defaultAlertsURL   = "https://api.opendata.transport.vic.gov.au/opendata/public-transport/gtfs/realtime/v1/metro/service-alerts"
 	defaultAPIHeader   = "KeyID"
 	defaultHTTPTimeout = 15 * time.Second
+	defaultGTFSURL     = "https://data.ptv.vic.gov.au/downloads/gtfs.zip"
+	defaultGTFSTimeout = 10 * time.Minute
 )
 
 type Worker struct {
@@ -22,6 +24,11 @@ type Worker struct {
 
 type Database struct {
 	URL string
+}
+
+type GTFS struct {
+	URL         string
+	HTTPTimeout time.Duration
 }
 
 func LoadWorker(getenv func(string) string) (Worker, error) {
@@ -77,6 +84,29 @@ func LoadDatabase(getenv func(string) string) (Database, error) {
 		return Database{}, errors.New("invalid database configuration: DATABASE_URL database name is required")
 	}
 	return Database{URL: databaseURL}, nil
+}
+
+func LoadGTFS(getenv func(string) string) (GTFS, error) {
+	config := GTFS{
+		URL:         valueOrDefault(getenv("GTFS_URL"), defaultGTFSURL),
+		HTTPTimeout: defaultGTFSTimeout,
+	}
+	var validationErrors []error
+	if err := validateHTTPURL(config.URL); err != nil {
+		validationErrors = append(validationErrors, fmt.Errorf("GTFS_URL: %w", err))
+	}
+	if value := getenv("GTFS_HTTP_TIMEOUT"); value != "" {
+		parsed, err := time.ParseDuration(value)
+		if err != nil || parsed <= 0 {
+			validationErrors = append(validationErrors, fmt.Errorf("GTFS_HTTP_TIMEOUT must be a positive Go duration: %q", value))
+		} else {
+			config.HTTPTimeout = parsed
+		}
+	}
+	if len(validationErrors) > 0 {
+		return GTFS{}, fmt.Errorf("invalid GTFS configuration: %w", errors.Join(validationErrors...))
+	}
+	return config, nil
 }
 
 func valueOrDefault(value, fallback string) string {

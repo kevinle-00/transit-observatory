@@ -184,6 +184,51 @@ func TestLoadDatabaseDoesNotExposeMalformedURL(t *testing.T) {
 	}
 }
 
+func TestLoadGTFSDefaults(t *testing.T) {
+	config, err := LoadGTFS(environment(nil))
+	if err != nil {
+		t.Fatalf("LoadGTFS() error = %v", err)
+	}
+	if config.URL != defaultGTFSURL {
+		t.Errorf("URL = %q, want %q", config.URL, defaultGTFSURL)
+	}
+	if config.HTTPTimeout != 10*time.Minute {
+		t.Errorf("HTTPTimeout = %s, want 10m", config.HTTPTimeout)
+	}
+}
+
+func TestLoadGTFSValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		values      map[string]string
+		wantMessage string
+	}{
+		{
+			name:        "invalid scheme",
+			values:      map[string]string{"GTFS_URL": "file:///tmp/gtfs.zip"},
+			wantMessage: "scheme must be http or https",
+		},
+		{
+			name:        "URL query secret",
+			values:      map[string]string{"GTFS_URL": "https://example.com/gtfs.zip?key=secret"},
+			wantMessage: "must not contain query parameters",
+		},
+		{
+			name:        "invalid timeout",
+			values:      map[string]string{"GTFS_HTTP_TIMEOUT": "later"},
+			wantMessage: "must be a positive Go duration",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := LoadGTFS(environment(test.values))
+			if err == nil || !strings.Contains(err.Error(), test.wantMessage) {
+				t.Fatalf("LoadGTFS() error = %v, want message containing %q", err, test.wantMessage)
+			}
+		})
+	}
+}
+
 func environment(values map[string]string) func(string) string {
 	return func(key string) string {
 		return values[key]

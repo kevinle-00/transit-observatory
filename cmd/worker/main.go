@@ -16,6 +16,7 @@ import (
 
 	"github.com/kevinle-00/transit-observatory/internal/config"
 	"github.com/kevinle-00/transit-observatory/internal/database"
+	staticgtfs "github.com/kevinle-00/transit-observatory/internal/gtfs"
 	"github.com/kevinle-00/transit-observatory/internal/ingest"
 	"github.com/kevinle-00/transit-observatory/internal/realtime"
 )
@@ -39,6 +40,18 @@ type ingestionReport struct {
 	AlertCount    int                 `json:"alert_count"`
 }
 
+type gtfsImportReport struct {
+	ImportID        int64                        `json:"gtfs_import_id,omitempty"`
+	Status          string                       `json:"status"`
+	SourceURL       string                       `json:"source_url"`
+	RetrievedAt     time.Time                    `json:"retrieved_at"`
+	ContentSHA256   string                       `json:"content_sha256"`
+	ArchiveBytes    int64                        `json:"archive_bytes"`
+	ParseDurationMS int64                        `json:"parse_duration_ms"`
+	Summary         staticgtfs.Summary           `json:"summary"`
+	Coverage        *database.IdentifierCoverage `json:"realtime_identifier_coverage,omitempty"`
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -52,16 +65,118 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, output io.Writer, logger *slog.Logger) error {
 	if len(args) == 0 {
-		return errors.New("usage: worker <ingest-alerts|migrate> [options]")
+		return errors.New("usage: worker <ingest-alerts|ingest-gtfs|migrate> [options]")
 	}
 	switch args[0] {
 	case "ingest-alerts":
 		return runIngestAlerts(ctx, args[1:], getenv, output, logger)
+	case "ingest-gtfs":
+		return runIngestGTFS(ctx, args[1:], getenv, output, logger)
 	case "migrate":
 		return runMigrate(ctx, args[1:], getenv, logger)
 	default:
-		return fmt.Errorf("unknown command %q; usage: worker <ingest-alerts|migrate> [options]", args[0])
+		return fmt.Errorf("unknown command %q; usage: worker <ingest-alerts|ingest-gtfs|migrate> [options]", args[0])
 	}
+}
+
+func runIngestGTFS(ctx context.Context, args []string, getenv func(string) string, output io.Writer, logger *slog.Logger) error {
+	flags := flag.NewFlagSet("ingest-gtfs", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	dryRun := flags.Bool("dry-run", false, "download and validate Metro GTFS without persisting it")
+	if err := flags.Parse(args); err != nil {
+		return fmt.Errorf("parse ingest-gtfs flags: %w", err)
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("unexpected arguments: %v", flags.Args())
+	}
+	gtfsConfig, err := config.LoadGTFS(getenv)
+	if err != nil {
+		return err
+	}
+	downloader := staticgtfs.Downloader{
+		HTTPClient: &http.Client{Timeout: gtfsConfig.HTTPTimeout},
+		URL:        gtfsConfig.URL,
+	}
+	logger.Info("fetching static GTFS", "url", gtfsConfig.URL, "dry_run", *dryRun)
+	if *dryRun {
+		download, err := downloader.Fetch(ctx)
+		if err != nil {
+			return err
+		}
+		parseStarted := time.Now()
+		dataset, parseErr := staticgtfs.ParseArchive(download.Path, "")
+		cleanupErr := download.Cleanup()
+		if err := errors.Join(parseErr, cleanupErr); err != nil {
+			return err
+		}
+		report := gtfsImportReport{
+			Status:          "dry-run",
+			SourceURL:       gtfsConfig.URL,
+			RetrievedAt:     download.RetrievedAt,
+			ContentSHA256:   download.SHA256,
+			ArchiveBytes:    download.Size,
+			ParseDurationMS: time.Since(parseStarted).Milliseconds(),
+			Summary:         dataset.Summary,
+		}
+		if err := writeJSON(output, report); err != nil {
+			return err
+		}
+		logger.Info("static GTFS dry run completed", "routes", dataset.Summary.RouteCount,
+			"stops", dataset.Summary.StopCount, "route_stations", dataset.Summary.RouteStationCount)
+		return nil
+	}
+
+	databaseConfig, err := config.LoadDatabase(getenv)
+	if err != nil {
+		return err
+	}
+	db, err := database.Open(ctx, databaseConfig.URL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	repository := database.NewGTFSRepository(db)
+	service := ingest.GTFSService{
+		SourceURL: gtfsConfig.URL,
+		Fetcher:   downloader,
+		Store:     repository,
+		Parse:     staticgtfs.ParseArchive,
+	}
+	result, err := service.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("ingest static GTFS: %w", err)
+	}
+	coverage, err := repository.Coverage(ctx)
+	if err != nil {
+		return err
+	}
+	status := "succeeded"
+	if result.Skipped {
+		status = "skipped"
+		currentSummary, err := repository.CurrentSummary(ctx)
+		if err != nil {
+			return err
+		}
+		result.Dataset.Summary = currentSummary
+	}
+	report := gtfsImportReport{
+		ImportID:        result.ImportID,
+		Status:          status,
+		SourceURL:       gtfsConfig.URL,
+		RetrievedAt:     result.Download.RetrievedAt,
+		ContentSHA256:   result.Download.SHA256,
+		ArchiveBytes:    result.Download.Size,
+		ParseDurationMS: result.ParseDuration.Milliseconds(),
+		Summary:         result.Dataset.Summary,
+		Coverage:        &coverage,
+	}
+	if err := writeJSON(output, report); err != nil {
+		return err
+	}
+	logger.Info("static GTFS ingestion completed", "gtfs_import_id", result.ImportID,
+		"status", status, "routes", result.Dataset.Summary.RouteCount,
+		"stops", result.Dataset.Summary.StopCount, "route_stations", result.Dataset.Summary.RouteStationCount)
+	return nil
 }
 
 func runIngestAlerts(ctx context.Context, args []string, getenv func(string) string, output io.Writer, logger *slog.Logger) error {

@@ -418,7 +418,7 @@ func integrationDatabase(t *testing.T) *sql.DB {
 	if err := Migrate(context.Background(), db); err != nil {
 		t.Fatalf("second Migrate() error = %v", err)
 	}
-	if _, err := db.Exec(`TRUNCATE ingestion_runs RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := db.Exec(`TRUNCATE ingestion_runs, gtfs_imports RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("reset integration database: %v", err)
 	}
 	return db
