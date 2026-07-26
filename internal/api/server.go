@@ -33,6 +33,7 @@ type ReadRepository interface {
 	GetStation(context.Context, string, time.Time) (database.StationDetail, error)
 	ListLineAnalytics(context.Context, database.AnalyticsQuery) ([]database.LineAnalytics, error)
 	GetLineAnalytics(context.Context, string, database.AnalyticsQuery) (database.LineAnalytics, error)
+	GetStatus(context.Context, database.StatusQuery) (database.StatusResponse, error)
 }
 
 type Handler struct {
@@ -41,6 +42,7 @@ type Handler struct {
 	logger         *slog.Logger
 	allowedOrigin  string
 	requestTimeout time.Duration
+	statusQuery    database.StatusQuery
 	now            func() time.Time
 	mux            *http.ServeMux
 }
@@ -95,13 +97,30 @@ type analyticsResponse struct {
 	Meta analyticsMeta `json:"meta"`
 }
 
-func NewHandler(healthChecker HealthChecker, reads ReadRepository, logger *slog.Logger, allowedOrigin string, requestTimeout time.Duration) *Handler {
+type statusMeta struct {
+	AlertDataMaxAgeSeconds     float64 `json:"alert_data_max_age_seconds"`
+	AlertCheckMaxAgeSeconds    float64 `json:"alert_check_max_age_seconds"`
+	GTFSDataMaxAgeSeconds      float64 `json:"gtfs_data_max_age_seconds"`
+	GTFSCheckMaxAgeSeconds     float64 `json:"gtfs_check_max_age_seconds"`
+	AlertRunMaxDurationSeconds float64 `json:"alert_run_max_duration_seconds"`
+	GTFSRunMaxDurationSeconds  float64 `json:"gtfs_run_max_duration_seconds"`
+	FutureToleranceSeconds     float64 `json:"future_tolerance_seconds"`
+	RecentFailureLimit         int     `json:"recent_failure_limit"`
+}
+
+type statusResponse struct {
+	Data database.StatusResponse `json:"data"`
+	Meta statusMeta              `json:"meta"`
+}
+
+func NewHandler(healthChecker HealthChecker, reads ReadRepository, logger *slog.Logger, allowedOrigin string, requestTimeout time.Duration, statusQuery database.StatusQuery) *Handler {
 	h := &Handler{
 		healthChecker:  healthChecker,
 		reads:          reads,
 		logger:         logger,
 		allowedOrigin:  allowedOrigin,
 		requestTimeout: requestTimeout,
+		statusQuery:    statusQuery,
 		now:            time.Now,
 		mux:            http.NewServeMux(),
 	}
@@ -115,7 +134,30 @@ func NewHandler(healthChecker HealthChecker, reads ReadRepository, logger *slog.
 	h.mux.HandleFunc("/api/v1/stations/{id}", h.handleStation)
 	h.mux.HandleFunc("/api/v1/analytics/lines", h.handleLineAnalytics)
 	h.mux.HandleFunc("/api/v1/analytics/lines/{id}", h.handleLineAnalyticsDetail)
+	h.mux.HandleFunc("/api/v1/status", h.handleStatus)
 	return h
+}
+
+func (h *Handler) handleStatus(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		h.invalidQuery(response, "query parameters are not supported")
+		return
+	}
+	query := h.statusQuery
+	query.Now = h.now().UTC()
+	ctx, cancel := context.WithTimeout(request.Context(), h.requestTimeout)
+	defer cancel()
+	result, err := h.reads.GetStatus(ctx, query)
+	if err != nil {
+		h.writeRepositoryError(response, request, "status query", err)
+		return
+	}
+	h.writeJSON(response, http.StatusOK, statusResponse{Data: result, Meta: statusMeta{
+		AlertDataMaxAgeSeconds: query.AlertDataMaxAge.Seconds(), AlertCheckMaxAgeSeconds: query.AlertCheckMaxAge.Seconds(),
+		GTFSDataMaxAgeSeconds: query.GTFSDataMaxAge.Seconds(), GTFSCheckMaxAgeSeconds: query.GTFSCheckMaxAge.Seconds(),
+		AlertRunMaxDurationSeconds: query.AlertRunMaxDuration.Seconds(), GTFSRunMaxDurationSeconds: query.GTFSRunMaxDuration.Seconds(),
+		FutureToleranceSeconds: query.FutureTolerance.Seconds(), RecentFailureLimit: query.RecentFailureLimit,
+	}})
 }
 
 func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) {

@@ -19,6 +19,7 @@ import (
 	staticgtfs "github.com/kevinle-00/transit-observatory/internal/gtfs"
 	"github.com/kevinle-00/transit-observatory/internal/ingest"
 	"github.com/kevinle-00/transit-observatory/internal/realtime"
+	"github.com/kevinle-00/transit-observatory/internal/storage"
 )
 
 type dryRunReport struct {
@@ -31,25 +32,27 @@ type dryRunReport struct {
 }
 
 type ingestionReport struct {
-	RunID         int64               `json:"ingestion_run_id"`
-	Status        string              `json:"status"`
-	RetrievedAt   time.Time           `json:"retrieved_at"`
-	PayloadSize   int                 `json:"payload_size_bytes"`
-	FeedTimestamp *realtime.Timestamp `json:"feed_timestamp,omitempty"`
-	EntityCount   int                 `json:"entity_count"`
-	AlertCount    int                 `json:"alert_count"`
+	RunID            int64               `json:"ingestion_run_id"`
+	Status           string              `json:"status"`
+	RetrievedAt      time.Time           `json:"retrieved_at"`
+	PayloadSize      int                 `json:"payload_size_bytes"`
+	FeedTimestamp    *realtime.Timestamp `json:"feed_timestamp,omitempty"`
+	EntityCount      int                 `json:"entity_count"`
+	AlertCount       int                 `json:"alert_count"`
+	ArchiveObjectKey string              `json:"archive_object_key"`
 }
 
 type gtfsImportReport struct {
-	ImportID        int64                        `json:"gtfs_import_id,omitempty"`
-	Status          string                       `json:"status"`
-	SourceURL       string                       `json:"source_url"`
-	RetrievedAt     time.Time                    `json:"retrieved_at"`
-	ContentSHA256   string                       `json:"content_sha256"`
-	ArchiveBytes    int64                        `json:"archive_bytes"`
-	ParseDurationMS int64                        `json:"parse_duration_ms"`
-	Summary         staticgtfs.Summary           `json:"summary"`
-	Coverage        *database.IdentifierCoverage `json:"realtime_identifier_coverage,omitempty"`
+	ImportID         int64                        `json:"gtfs_import_id,omitempty"`
+	Status           string                       `json:"status"`
+	SourceURL        string                       `json:"source_url"`
+	RetrievedAt      time.Time                    `json:"retrieved_at"`
+	ContentSHA256    string                       `json:"content_sha256"`
+	ArchiveBytes     int64                        `json:"archive_bytes"`
+	ParseDurationMS  int64                        `json:"parse_duration_ms"`
+	Summary          staticgtfs.Summary           `json:"summary"`
+	Coverage         *database.IdentifierCoverage `json:"realtime_identifier_coverage,omitempty"`
+	ArchiveObjectKey string                       `json:"archive_object_key,omitempty"`
 }
 
 func main() {
@@ -130,6 +133,14 @@ func runIngestGTFS(ctx context.Context, args []string, getenv func(string) strin
 	if err != nil {
 		return err
 	}
+	rawStorageConfig, err := config.LoadRawStorage(getenv)
+	if err != nil {
+		return err
+	}
+	archiveStore, err := storage.New(ctx, rawStorageConfig)
+	if err != nil {
+		return fmt.Errorf("configure raw storage: %w", err)
+	}
 	db, err := database.Open(ctx, databaseConfig.URL)
 	if err != nil {
 		return err
@@ -140,12 +151,14 @@ func runIngestGTFS(ctx context.Context, args []string, getenv func(string) strin
 		SourceURL: gtfsConfig.URL,
 		Fetcher:   downloader,
 		Store:     repository,
+		Archive:   archiveStore,
 		Parse:     staticgtfs.ParseArchive,
 	}
 	result, err := service.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("ingest static GTFS: %w", err)
 	}
+	logGTFSCleanupWarning(logger, result)
 	coverage, err := repository.Coverage(ctx)
 	if err != nil {
 		return err
@@ -160,15 +173,16 @@ func runIngestGTFS(ctx context.Context, args []string, getenv func(string) strin
 		result.Dataset.Summary = currentSummary
 	}
 	report := gtfsImportReport{
-		ImportID:        result.ImportID,
-		Status:          status,
-		SourceURL:       gtfsConfig.URL,
-		RetrievedAt:     result.Download.RetrievedAt,
-		ContentSHA256:   result.Download.SHA256,
-		ArchiveBytes:    result.Download.Size,
-		ParseDurationMS: result.ParseDuration.Milliseconds(),
-		Summary:         result.Dataset.Summary,
-		Coverage:        &coverage,
+		ImportID:         result.ImportID,
+		Status:           status,
+		SourceURL:        gtfsConfig.URL,
+		RetrievedAt:      result.Download.RetrievedAt,
+		ContentSHA256:    result.Download.SHA256,
+		ArchiveBytes:     result.Download.Size,
+		ParseDurationMS:  result.ParseDuration.Milliseconds(),
+		Summary:          result.Dataset.Summary,
+		Coverage:         &coverage,
+		ArchiveObjectKey: result.Archive.Key,
 	}
 	if err := writeJSON(output, report); err != nil {
 		return err
@@ -177,6 +191,12 @@ func runIngestGTFS(ctx context.Context, args []string, getenv func(string) strin
 		"status", status, "routes", result.Dataset.Summary.RouteCount,
 		"stops", result.Dataset.Summary.StopCount, "route_stations", result.Dataset.Summary.RouteStationCount)
 	return nil
+}
+
+func logGTFSCleanupWarning(logger *slog.Logger, result ingest.GTFSResult) {
+	if result.CleanupError != nil {
+		logger.Warn("static GTFS temporary cleanup failed", "gtfs_import_id", result.ImportID)
+	}
 }
 
 func runIngestAlerts(ctx context.Context, args []string, getenv func(string) string, output io.Writer, logger *slog.Logger) error {
@@ -234,6 +254,14 @@ func runIngestAlerts(ctx context.Context, args []string, getenv func(string) str
 	if err != nil {
 		return err
 	}
+	rawStorageConfig, err := config.LoadRawStorage(getenv)
+	if err != nil {
+		return err
+	}
+	archiveStore, err := storage.New(ctx, rawStorageConfig)
+	if err != nil {
+		return fmt.Errorf("configure raw storage: %w", err)
+	}
 	db, err := database.Open(ctx, databaseConfig.URL)
 	if err != nil {
 		return err
@@ -244,6 +272,7 @@ func runIngestAlerts(ctx context.Context, args []string, getenv func(string) str
 		SourceURL: workerConfig.AlertsURL,
 		Fetcher:   client,
 		Store:     database.NewAlertRepository(db),
+		Archive:   archiveStore,
 		Decode:    realtime.DecodeAlerts,
 	}
 	result, err := service.Run(ctx)
@@ -255,13 +284,14 @@ func runIngestAlerts(ctx context.Context, args []string, getenv func(string) str
 		status = "skipped"
 	}
 	if err := writeJSON(output, ingestionReport{
-		RunID:         result.RunID,
-		Status:        status,
-		RetrievedAt:   result.Fetch.RetrievedAt,
-		PayloadSize:   len(result.Fetch.Body),
-		FeedTimestamp: result.Summary.Timestamp,
-		EntityCount:   result.Summary.EntityCount,
-		AlertCount:    result.Summary.AlertCount,
+		RunID:            result.RunID,
+		Status:           status,
+		RetrievedAt:      result.Fetch.RetrievedAt,
+		PayloadSize:      len(result.Fetch.Body),
+		FeedTimestamp:    result.Summary.Timestamp,
+		EntityCount:      result.Summary.EntityCount,
+		AlertCount:       result.Summary.AlertCount,
+		ArchiveObjectKey: result.Archive.Key,
 	}); err != nil {
 		return err
 	}

@@ -40,6 +40,9 @@ type stubReadRepository struct {
 	analyticsQuery  database.AnalyticsQuery
 	now             time.Time
 	blockListAlerts bool
+	blockStatus     bool
+	status          database.StatusResponse
+	statusQuery     database.StatusQuery
 }
 
 func (stub *stubReadRepository) ListAlerts(ctx context.Context, query database.AlertQuery) (database.AlertPage, error) {
@@ -89,6 +92,70 @@ func (stub *stubReadRepository) ListLineAnalytics(_ context.Context, query datab
 func (stub *stubReadRepository) GetLineAnalytics(_ context.Context, id string, query database.AnalyticsQuery) (database.LineAnalytics, error) {
 	stub.lineID, stub.analyticsQuery = id, query
 	return stub.lineAnalytics, stub.err
+}
+
+func (stub *stubReadRepository) GetStatus(ctx context.Context, query database.StatusQuery) (database.StatusResponse, error) {
+	stub.statusQuery = query
+	if stub.blockStatus {
+		<-ctx.Done()
+		return database.StatusResponse{}, ctx.Err()
+	}
+	return stub.status, stub.err
+}
+
+func TestHandlerStatusUsesFixedNowAndExactMetadata(t *testing.T) {
+	fixedNow := time.Date(2026, time.July, 26, 12, 30, 0, 0, time.FixedZone("offset", 3600))
+	stub := &stubReadRepository{status: database.StatusResponse{
+		OverallStatus: database.OverallUnavailable,
+		ServiceAlerts: database.AlertStatusSummary{StatusSection: database.StatusSection{Reasons: []string{}, RecentFailures: []database.FailureSummary{}}},
+		StaticGTFS:    database.GTFSStatusSummary{StatusSection: database.StatusSection{Reasons: []string{}, RecentFailures: []database.FailureSummary{}}},
+	}}
+	handler := testHandler(stubHealthChecker{}, stub, nil)
+	handler.now = func() time.Time { return fixedNow }
+	response := serve(handler, http.MethodGet, "/api/v1/status")
+	if response.Code != http.StatusOK {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+	if !stub.statusQuery.Now.Equal(fixedNow.UTC()) {
+		t.Errorf("status now = %v", stub.statusQuery.Now)
+	}
+	var body struct {
+		Data database.StatusResponse `json:"data"`
+		Meta statusMeta              `json:"meta"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Data.OverallStatus != database.OverallUnavailable || body.Meta.AlertDataMaxAgeSeconds != 600 ||
+		body.Meta.GTFSDataMaxAgeSeconds != 172800 || body.Meta.RecentFailureLimit != 3 {
+		t.Errorf("body = %#v", body)
+	}
+}
+
+func TestHandlerStatusTimeoutErrorAndOptions(t *testing.T) {
+	stub := &stubReadRepository{blockStatus: true}
+	handler := testHandler(stubHealthChecker{}, stub, nil)
+	handler.requestTimeout = time.Millisecond
+	response := serve(handler, http.MethodGet, "/api/v1/status")
+	if response.Code != http.StatusGatewayTimeout || !strings.Contains(response.Body.String(), `"code":"request_timeout"`) {
+		t.Fatalf("timeout response = %d %s", response.Code, response.Body.String())
+	}
+
+	var logs bytes.Buffer
+	response = serve(testHandler(stubHealthChecker{}, &stubReadRepository{err: errors.New("private SQL")}, &logs), http.MethodGet, "/api/v1/status")
+	if response.Code != http.StatusInternalServerError || strings.Contains(response.Body.String(), "SQL") || !strings.Contains(logs.String(), "private SQL") {
+		t.Fatalf("error response = %d %s logs=%s", response.Code, response.Body.String(), logs.String())
+	}
+
+	handler = testHandler(stubHealthChecker{}, &stubReadRepository{}, nil)
+	request := httptest.NewRequest(http.MethodOptions, "/api/v1/status", nil)
+	request.Header.Set("Origin", "https://web.example")
+	request.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent || response.Header().Get("Access-Control-Allow-Origin") != "https://web.example" {
+		t.Fatalf("options response = %d headers=%v", response.Code, response.Header())
+	}
 }
 
 func TestHandlerHealth(t *testing.T) {
@@ -259,6 +326,7 @@ func TestHandlerRejectsInvalidQueries(t *testing.T) {
 		{name: "bad interval", path: "/api/v1/analytics/lines?interval=month"},
 		{name: "detail replacement bus", path: "/api/v1/analytics/lines/red?include_replacement_bus=false"},
 		{name: "detail query", path: "/api/v1/lines/red?x=1"},
+		{name: "status query", path: "/api/v1/status?x=1"},
 		{name: "long path id", path: "/api/v1/lines/" + longID},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -369,7 +437,12 @@ func testHandler(health HealthChecker, reads ReadRepository, logs *bytes.Buffer)
 	if logs == nil {
 		logs = &bytes.Buffer{}
 	}
-	return NewHandler(health, reads, slog.New(slog.NewJSONHandler(logs, nil)), "https://web.example", time.Second)
+	return NewHandler(health, reads, slog.New(slog.NewJSONHandler(logs, nil)), "https://web.example", time.Second, database.StatusQuery{
+		AlertDataMaxAge: 10 * time.Minute, AlertCheckMaxAge: 20 * time.Minute,
+		GTFSDataMaxAge: 48 * time.Hour, GTFSCheckMaxAge: 24 * time.Hour,
+		AlertRunMaxDuration: 5 * time.Minute, GTFSRunMaxDuration: 30 * time.Minute,
+		FutureTolerance: 2 * time.Minute, RecentFailureLimit: 3,
+	})
 }
 
 func serve(handler http.Handler, method, path string) *httptest.ResponseRecorder {

@@ -51,7 +51,12 @@ func run(ctx context.Context, getenv func(string) string, logger *slog.Logger) e
 	server := &http.Server{
 		Handler: api.NewHandler(
 			db, database.NewReadRepository(db), logger,
-			apiConfig.CORSAllowedOrigin, apiConfig.RequestTimeout,
+			apiConfig.CORSAllowedOrigin, apiConfig.RequestTimeout, database.StatusQuery{
+				AlertDataMaxAge: apiConfig.StatusAlertDataMaxAge, AlertCheckMaxAge: apiConfig.StatusAlertCheckMaxAge,
+				GTFSDataMaxAge: apiConfig.StatusGTFSDataMaxAge, GTFSCheckMaxAge: apiConfig.StatusGTFSCheckMaxAge,
+				AlertRunMaxDuration: apiConfig.StatusAlertRunMaxDuration, GTFSRunMaxDuration: apiConfig.StatusGTFSRunMaxDuration,
+				FutureTolerance: apiConfig.StatusFutureTolerance, RecentFailureLimit: apiConfig.StatusRecentFailureLimit,
+			},
 		),
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 		BaseContext:       func(net.Listener) context.Context { return requestBaseContext },

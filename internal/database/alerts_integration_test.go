@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/kevinle-00/transit-observatory/internal/realtime"
+	"github.com/kevinle-00/transit-observatory/internal/storage"
 )
 
 func TestAlertRepositoryStoresCompleteSnapshot(t *testing.T) {
@@ -28,6 +30,7 @@ func TestAlertRepositoryStoresCompleteSnapshot(t *testing.T) {
 		RetrievedAt: time.Date(2026, time.July, 24, 9, 0, 0, 0, time.UTC),
 	}
 	summary := testSummary()
+	recordTestAlertArchive(t, repository, runID, result.Body)
 	if _, err := repository.CompleteAlertRun(ctx, runID, result, summary); err != nil {
 		t.Fatalf("CompleteAlertRun() error = %v", err)
 	}
@@ -75,6 +78,7 @@ func TestAlertRepositoryRollsBackPartialSnapshot(t *testing.T) {
 	summary.Alerts = append(summary.Alerts, summary.Alerts[0])
 	summary.AlertCount = 2
 	result := realtime.FetchResult{Body: []byte("payload"), StatusCode: 200, RetrievedAt: time.Now()}
+	recordTestAlertArchive(t, repository, runID, result.Body)
 	if _, err := repository.CompleteAlertRun(ctx, runID, result, summary); err == nil {
 		t.Fatal("CompleteAlertRun() error = nil, want duplicate entity failure")
 	}
@@ -133,14 +137,14 @@ func TestAlertRepositoryTracksAlertLifecycle(t *testing.T) {
 	completeTestRun(t, repository, "payload-5", reappeared, false)
 	duplicateRunID := completeTestRun(t, repository, "payload-5", reappeared, true)
 
-	var status, skipReason string
+	var status, skipReason, skipCode string
 	if err := db.QueryRowContext(ctx, `
-		SELECT status, skip_reason FROM ingestion_runs WHERE id = $1
-	`, duplicateRunID).Scan(&status, &skipReason); err != nil {
+		SELECT status, skip_reason, skip_code FROM ingestion_runs WHERE id = $1
+	`, duplicateRunID).Scan(&status, &skipReason, &skipCode); err != nil {
 		t.Fatalf("query skipped run: %v", err)
 	}
-	if status != "skipped" || skipReason == "" {
-		t.Errorf("duplicate run = status %q, reason %q", status, skipReason)
+	if status != "skipped" || skipReason == "" || skipCode != "duplicate" {
+		t.Errorf("duplicate run = status %q, reason %q, code %q", status, skipReason, skipCode)
 	}
 	var skippedSnapshots int
 	if err := db.QueryRowContext(ctx, `
@@ -325,10 +329,10 @@ func TestAlertRepositoryInitializesAfterPreRevisionSuccessfulRun(t *testing.T) {
 	if _, err := db.Exec(`
 		INSERT INTO ingestion_runs (
 			feed_type, status, source_url, completed_at, retrieved_at,
-			feed_timestamp, content_sha256, alert_reconciliation_applied
+			feed_timestamp, content_sha256, alert_reconciliation_applied, archive_status
 		)
 		VALUES ('service_alerts', 'succeeded', 'https://example.test/alerts',
-			$1, $1, $1, $2, false)
+			$1, $1, $1, $2, false, 'legacy')
 	`, base, hex.EncodeToString(hash[:])); err != nil {
 		t.Fatalf("insert pre-revision run: %v", err)
 	}
@@ -418,7 +422,7 @@ func integrationDatabase(t *testing.T) *sql.DB {
 	if err := Migrate(context.Background(), db); err != nil {
 		t.Fatalf("second Migrate() error = %v", err)
 	}
-	if _, err := db.Exec(`TRUNCATE ingestion_runs, gtfs_imports RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := db.Exec(`TRUNCATE ingestion_runs, gtfs_imports, raw_archives RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("reset integration database: %v", err)
 	}
 	return db
@@ -520,6 +524,7 @@ func completeExistingTestRun(
 		ContentType: "application/octet-stream",
 		RetrievedAt: retrievedAt,
 	}
+	recordTestAlertArchive(t, repository, runID, result.Body)
 	skipped, err := repository.CompleteAlertRun(context.Background(), runID, result, summary)
 	if err != nil {
 		t.Fatalf("CompleteAlertRun() error = %v", err)
@@ -528,6 +533,17 @@ func completeExistingTestRun(
 		t.Fatalf("CompleteAlertRun() skipped = %t, want %t", skipped, wantSkipped)
 	}
 	return runID
+}
+
+func recordTestAlertArchive(t *testing.T, repository *AlertRepository, runID int64, payload []byte) {
+	t.Helper()
+	digest := sha256.Sum256(payload)
+	if err := repository.RecordAlertArchive(context.Background(), runID, storage.Object{
+		Backend: "test", Key: fmt.Sprintf("alerts/%d", runID), Size: int64(len(payload)),
+		SHA256: hex.EncodeToString(digest[:]), StoredAt: time.Now().UTC(), Created: storage.Created(true),
+	}); err != nil {
+		t.Fatalf("RecordAlertArchive() error = %v", err)
+	}
 }
 
 func assertCount(t *testing.T, db *sql.DB, table string, want int) {

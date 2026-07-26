@@ -81,9 +81,11 @@ func TestCurrentAlertReaderExcludesClosedAlerts(t *testing.T) {
 		t.Fatalf("StartAlertRun() close error = %v", err)
 	}
 	closedAt := time.Date(2026, time.July, 25, 6, 5, 0, 0, time.UTC)
-	if _, err := repository.CompleteAlertRun(ctx, runID, realtime.FetchResult{
+	closeResult := realtime.FetchResult{
 		Body: []byte("empty-full-feed"), StatusCode: 200, RetrievedAt: closedAt,
-	}, realtime.FeedSummary{
+	}
+	recordTestAlertArchive(t, repository, runID, closeResult.Body)
+	if _, err := repository.CompleteAlertRun(ctx, runID, closeResult, realtime.FeedSummary{
 		Incrementality: "FULL_DATASET",
 		Timestamp:      &realtime.Timestamp{Unix: uint64(closedAt.Unix())},
 		Alerts:         []realtime.AlertSummary{},
@@ -109,9 +111,11 @@ func TestCurrentAlertReaderExcludesDeletedRevisions(t *testing.T) {
 		t.Fatalf("StartAlertRun() error = %v", err)
 	}
 	observedAt := time.Date(2026, time.July, 25, 6, 10, 0, 0, time.UTC)
-	if _, err := repository.CompleteAlertRun(ctx, runID, realtime.FetchResult{
+	deletedResult := realtime.FetchResult{
 		Body: []byte("deleted-alert"), StatusCode: 200, RetrievedAt: observedAt,
-	}, realtime.FeedSummary{
+	}
+	recordTestAlertArchive(t, repository, runID, deletedResult.Body)
+	if _, err := repository.CompleteAlertRun(ctx, runID, deletedResult, realtime.FeedSummary{
 		Incrementality: "FULL_DATASET",
 		Timestamp:      &realtime.Timestamp{Unix: uint64(observedAt.Unix())},
 		EntityCount:    1,
@@ -161,6 +165,7 @@ func installEnrichmentNetwork(t *testing.T, ctx context.Context, db *sql.DB) {
 		RetrievedAt: modifiedAt.Add(time.Minute), ModifiedAt: &modifiedAt,
 		SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Size: 100,
 	}
+	recordTestGTFSArchive(t, repository, importID, download)
 	if _, err := repository.CompleteImport(ctx, importID, download, dataset); err != nil {
 		t.Fatalf("CompleteImport() error = %v", err)
 	}
@@ -196,9 +201,11 @@ func installEnrichmentAlert(t *testing.T, ctx context.Context, db *sql.DB) {
 			},
 		},
 	}
-	if _, err := repository.CompleteAlertRun(ctx, runID, realtime.FetchResult{
+	alertResult := realtime.FetchResult{
 		Body: []byte("enrichment-feed"), StatusCode: 200, RetrievedAt: observedAt,
-	}, summary); err != nil {
+	}
+	recordTestAlertArchive(t, repository, runID, alertResult.Body)
+	if _, err := repository.CompleteAlertRun(ctx, runID, alertResult, summary); err != nil {
 		t.Fatalf("CompleteAlertRun() error = %v", err)
 	}
 }

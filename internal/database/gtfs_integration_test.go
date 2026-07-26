@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/kevinle-00/transit-observatory/internal/gtfs"
 	"github.com/kevinle-00/transit-observatory/internal/realtime"
+	"github.com/kevinle-00/transit-observatory/internal/storage"
 )
 
 func TestGTFSRepositoryImportsAndSkipsDuplicate(t *testing.T) {
@@ -22,6 +24,7 @@ func TestGTFSRepositoryImportsAndSkipsDuplicate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartImport() error = %v", err)
 	}
+	recordTestGTFSArchive(t, repository, importID, download)
 	skipped, err := repository.CompleteImport(ctx, importID, download, dataset)
 	if err != nil {
 		t.Fatalf("CompleteImport() error = %v", err)
@@ -37,6 +40,7 @@ func TestGTFSRepositoryImportsAndSkipsDuplicate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartImport() duplicate error = %v", err)
 	}
+	recordTestGTFSArchive(t, repository, duplicateID, download)
 	skipped, err = repository.SkipIfImported(ctx, duplicateID, download)
 	if err != nil {
 		t.Fatalf("SkipIfImported() error = %v", err)
@@ -44,12 +48,12 @@ func TestGTFSRepositoryImportsAndSkipsDuplicate(t *testing.T) {
 	if !skipped {
 		t.Error("duplicate import was not skipped")
 	}
-	var status string
-	if err := db.QueryRow("SELECT status FROM gtfs_imports WHERE id = $1", duplicateID).Scan(&status); err != nil {
+	var status, skipCode string
+	if err := db.QueryRow("SELECT status, skip_code FROM gtfs_imports WHERE id = $1", duplicateID).Scan(&status, &skipCode); err != nil {
 		t.Fatalf("query duplicate import: %v", err)
 	}
-	if status != "skipped" {
-		t.Errorf("duplicate status = %q, want skipped", status)
+	if status != "skipped" || skipCode != "duplicate" {
+		t.Errorf("duplicate status/code = %q/%q, want skipped/duplicate", status, skipCode)
 	}
 	currentSummary, err := repository.CurrentSummary(ctx)
 	if err != nil {
@@ -69,7 +73,9 @@ func TestGTFSRepositoryRollbackPreservesCurrentNetwork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartImport() first error = %v", err)
 	}
-	if _, err := repository.CompleteImport(ctx, firstID, testGTFSDownload("first-hash"), testGTFSDataset()); err != nil {
+	firstDownload := testGTFSDownload("first-hash")
+	recordTestGTFSArchive(t, repository, firstID, firstDownload)
+	if _, err := repository.CompleteImport(ctx, firstID, firstDownload, testGTFSDataset()); err != nil {
 		t.Fatalf("CompleteImport() first error = %v", err)
 	}
 
@@ -80,6 +86,7 @@ func TestGTFSRepositoryRollbackPreservesCurrentNetwork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartImport() second error = %v", err)
 	}
+	recordTestGTFSArchive(t, repository, secondID, secondDownload)
 	if _, err := repository.CompleteImport(ctx, secondID, secondDownload, invalid); err == nil {
 		t.Fatal("CompleteImport() invalid error = nil")
 	}
@@ -110,6 +117,7 @@ func TestGTFSRepositoryReimportsHistoricalHashWhenItBecomesCurrentAgain(t *testi
 	if err != nil {
 		t.Fatalf("start first A import: %v", err)
 	}
+	recordTestGTFSArchive(t, repository, firstID, first)
 	if _, err := repository.CompleteImport(ctx, firstID, first, testGTFSDataset()); err != nil {
 		t.Fatalf("complete first A import: %v", err)
 	}
@@ -118,6 +126,7 @@ func TestGTFSRepositoryReimportsHistoricalHashWhenItBecomesCurrentAgain(t *testi
 	if err != nil {
 		t.Fatalf("start B import: %v", err)
 	}
+	recordTestGTFSArchive(t, repository, secondID, second)
 	if _, err := repository.CompleteImport(ctx, secondID, second, testGTFSDataset()); err != nil {
 		t.Fatalf("complete B import: %v", err)
 	}
@@ -126,6 +135,7 @@ func TestGTFSRepositoryReimportsHistoricalHashWhenItBecomesCurrentAgain(t *testi
 	if err != nil {
 		t.Fatalf("start second A import: %v", err)
 	}
+	recordTestGTFSArchive(t, repository, thirdID, third)
 	skipped, err := repository.CompleteImport(ctx, thirdID, third, testGTFSDataset())
 	if err != nil {
 		t.Fatalf("complete second A import: %v", err)
@@ -157,10 +167,12 @@ func TestGTFSRepositoryDoesNotReplaceNewerNetworkWithOlderDownload(t *testing.T)
 		t.Fatalf("start newer import: %v", err)
 	}
 	newer := testGTFSDownloadAt("newer", base.Add(time.Hour))
+	recordTestGTFSArchive(t, repository, newerID, newer)
 	if _, err := repository.CompleteImport(ctx, newerID, newer, testGTFSDataset()); err != nil {
 		t.Fatalf("complete newer import: %v", err)
 	}
 	older := testGTFSDownloadAt("older", base)
+	recordTestGTFSArchive(t, repository, olderID, older)
 	skipped, err := repository.CompleteImport(ctx, olderID, older, testGTFSDataset())
 	if err != nil {
 		t.Fatalf("complete older import: %v", err)
@@ -190,6 +202,7 @@ func TestGTFSRepositoryUsesRequestTimeWhenSourceTimestampTies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start current import: %v", err)
 	}
+	recordTestGTFSArchive(t, repository, currentID, current)
 	if _, err := repository.CompleteImport(ctx, currentID, current, testGTFSDataset()); err != nil {
 		t.Fatalf("complete current import: %v", err)
 	}
@@ -201,6 +214,7 @@ func TestGTFSRepositoryUsesRequestTimeWhenSourceTimestampTies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start stale import: %v", err)
 	}
+	recordTestGTFSArchive(t, repository, staleID, stale)
 	skipped, err := repository.CompleteImport(ctx, staleID, stale, testGTFSDataset())
 	if err != nil {
 		t.Fatalf("complete stale import: %v", err)
@@ -224,7 +238,9 @@ func TestGTFSRepositoryMeasuresRealtimeIdentifierCoverage(t *testing.T) {
 	dataset.Stops[0].ID = "vic:rail:ARM"
 	dataset.Stops[2].ParentStationID = "vic:rail:ARM"
 	dataset.RouteStations[0].StationID = "vic:rail:ARM"
-	if _, err := gtfsRepository.CompleteImport(ctx, importID, testGTFSDownload("coverage-hash"), dataset); err != nil {
+	coverageDownload := testGTFSDownload("coverage-hash")
+	recordTestGTFSArchive(t, gtfsRepository, importID, coverageDownload)
+	if _, err := gtfsRepository.CompleteImport(ctx, importID, coverageDownload, dataset); err != nil {
 		t.Fatalf("CompleteImport() error = %v", err)
 	}
 
@@ -236,9 +252,11 @@ func TestGTFSRepositoryMeasuresRealtimeIdentifierCoverage(t *testing.T) {
 	summary := testSummary()
 	summary.Alerts[0].InformedEntities[0].TripRouteID = summary.Alerts[0].InformedEntities[0].RouteID
 	summary.Alerts[0].InformedEntities[0].RouteID = ""
-	if _, err := alertRepository.CompleteAlertRun(ctx, alertRunID, realtime.FetchResult{
+	alertResult := realtime.FetchResult{
 		Body: []byte("coverage-alert"), StatusCode: 200, RetrievedAt: time.Now().UTC(),
-	}, summary); err != nil {
+	}
+	recordTestAlertArchive(t, alertRepository, alertRunID, alertResult.Body)
+	if _, err := alertRepository.CompleteAlertRun(ctx, alertRunID, alertResult, summary); err != nil {
 		t.Fatalf("CompleteAlertRun() error = %v", err)
 	}
 
@@ -249,6 +267,16 @@ func TestGTFSRepositoryMeasuresRealtimeIdentifierCoverage(t *testing.T) {
 	if coverage.RealtimeRouteCount != 1 || coverage.MatchedRouteCount != 1 ||
 		coverage.RealtimeStopCount != 1 || coverage.MatchedStopCount != 1 {
 		t.Errorf("coverage = %#v", coverage)
+	}
+}
+
+func recordTestGTFSArchive(t *testing.T, repository *GTFSRepository, importID int64, download gtfs.Download) {
+	t.Helper()
+	if err := repository.RecordGTFSArchive(context.Background(), importID, storage.Object{
+		Backend: "test", Key: fmt.Sprintf("gtfs/%d", importID), Size: download.Size,
+		SHA256: download.SHA256, StoredAt: time.Now().UTC(), Created: storage.Created(true),
+	}); err != nil {
+		t.Fatalf("RecordGTFSArchive() error = %v", err)
 	}
 }
 

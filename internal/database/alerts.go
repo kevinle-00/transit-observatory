@@ -10,10 +10,14 @@ import (
 	"math"
 	"time"
 
+	"github.com/kevinle-00/transit-observatory/internal/observability"
 	"github.com/kevinle-00/transit-observatory/internal/realtime"
 )
 
-const maxStoredErrorRunes = 8 << 10
+const (
+	maxStoredErrorRunes = 8 << 10
+	maxPublicErrorRunes = 512
+)
 
 const alertReconciliationLockID int64 = 74616365727473
 
@@ -28,8 +32,8 @@ func NewAlertRepository(db *sql.DB) *AlertRepository {
 func (r *AlertRepository) StartAlertRun(ctx context.Context, sourceURL string) (int64, error) {
 	var id int64
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO ingestion_runs (feed_type, status, source_url)
-		VALUES ('service_alerts', 'running', $1)
+		INSERT INTO ingestion_runs (feed_type, status, source_url, archive_status)
+		VALUES ('service_alerts', 'running', $1, 'pending')
 		RETURNING id
 	`, sourceURL).Scan(&id)
 	if err != nil {
@@ -45,11 +49,28 @@ func (r *AlertRepository) FailAlertRun(
 	summary *realtime.FeedSummary,
 	runError error,
 ) error {
-	messageRunes := []rune(runError.Error())
+	stage := "fetch"
+	if fetch != nil {
+		stage = "persist"
+	}
+	return r.FailAlertRunWithFailure(ctx, runID, fetch, summary, observability.Failure{
+		Stage: stage, Code: "ingestion_failed", PublicMessage: "Service-alert ingestion failed", Err: runError,
+	})
+}
+
+func (r *AlertRepository) FailAlertRunWithFailure(
+	ctx context.Context,
+	runID int64,
+	fetch *realtime.FetchResult,
+	summary *realtime.FeedSummary,
+	failure observability.Failure,
+) error {
+	messageRunes := []rune(failure.Error())
 	if len(messageRunes) > maxStoredErrorRunes {
 		messageRunes = messageRunes[:maxStoredErrorRunes]
 	}
 	message := string(messageRunes)
+	publicMessage := truncateRunes(failure.PublicMessage, maxPublicErrorRunes)
 	var retrievedAt, httpStatus, contentType, payloadBytes, contentHash any
 	if fetch != nil {
 		retrievedAt = fetch.RetrievedAt
@@ -69,9 +90,13 @@ func (r *AlertRepository) FailAlertRun(
 		SET status = 'failed', completed_at = now(), error_message = $2,
 			retrieved_at = $3, http_status = $4, content_type = $5,
 			payload_bytes = $6, content_sha256 = $7,
-			entity_count = $8, alert_count = $9
+			entity_count = $8, alert_count = $9,
+			failure_stage = $10, failure_code = $11, public_error_message = $12,
+			archive_status = CASE WHEN archive_status = 'archived' THEN 'archived' ELSE 'failed' END,
+			archive_error = CASE WHEN archive_status = 'archived' THEN NULL ELSE $2 END
 		WHERE id = $1 AND status = 'running'
-	`, runID, message, retrievedAt, httpStatus, contentType, payloadBytes, contentHash, entityCount, alertCount)
+	`, runID, message, retrievedAt, httpStatus, contentType, payloadBytes, contentHash, entityCount, alertCount,
+		failure.Stage, nullableString(failure.Code), nullableString(publicMessage))
 	if err != nil {
 		return fmt.Errorf("mark service-alert ingestion run %d failed: %w", runID, err)
 	}
@@ -172,9 +197,11 @@ func (r *AlertRepository) CompleteAlertRun(
 			entity_count = $8,
 			alert_count = $9,
 			skip_reason = NULL,
+			skip_code = NULL,
 			alert_reconciliation_applied = true,
-			error_message = NULL
-		WHERE id = $1 AND status = 'running'
+			error_message = NULL,
+			failure_stage = NULL, failure_code = NULL, public_error_message = NULL
+		WHERE id = $1 AND status = 'running' AND archive_status = 'archived'
 	`,
 		runID,
 		result.RetrievedAt,
@@ -207,7 +234,8 @@ type appliedFeed struct {
 func ingestionRunSourceURL(ctx context.Context, tx *sql.Tx, runID int64) (string, error) {
 	var sourceURL string
 	if err := tx.QueryRowContext(ctx, `
-		SELECT source_url FROM ingestion_runs WHERE id = $1 AND status = 'running'
+		SELECT source_url FROM ingestion_runs
+		WHERE id = $1 AND status = 'running' AND archive_status = 'archived'
 	`, runID).Scan(&sourceURL); err != nil {
 		return "", fmt.Errorf("load source URL for ingestion run %d: %w", runID, err)
 	}
@@ -263,8 +291,9 @@ func updateSkippedRun(
 			entity_count = $8,
 			alert_count = $9,
 			skip_reason = $10,
+			skip_code = $11,
 			error_message = NULL
-		WHERE id = $1 AND status = 'running'
+		WHERE id = $1 AND status = 'running' AND archive_status = 'archived'
 	`,
 		runID,
 		result.RetrievedAt,
@@ -276,6 +305,7 @@ func updateSkippedRun(
 		summary.EntityCount,
 		summary.AlertCount,
 		reason,
+		skipCode(reason),
 	)
 	if err != nil {
 		return fmt.Errorf("skip duplicate service-alert ingestion run %d: %w", runID, err)

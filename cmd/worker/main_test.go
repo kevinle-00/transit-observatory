@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/MobilityData/gtfs-realtime-bindings/golang/gtfs"
+	"github.com/kevinle-00/transit-observatory/internal/ingest"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -33,8 +35,9 @@ func TestRunWritesReportToStdoutAndLogsToStderr(t *testing.T) {
 	defer server.Close()
 
 	values := map[string]string{
-		"TRANSIT_API_KEY":    "secret-value",
-		"TRANSIT_ALERTS_URL": server.URL,
+		"TRANSIT_API_KEY":     "secret-value",
+		"TRANSIT_ALERTS_URL":  server.URL,
+		"RAW_STORAGE_BACKEND": "invalid-but-unused-by-dry-run",
 	}
 	getenv := func(key string) string { return values[key] }
 	var output bytes.Buffer
@@ -56,5 +59,17 @@ func TestRunWritesReportToStdoutAndLogsToStderr(t *testing.T) {
 	}
 	if strings.Contains(logs.String(), "secret-value") || strings.Contains(output.String(), "secret-value") {
 		t.Error("worker output exposed the API key")
+	}
+}
+
+func TestLogGTFSCleanupWarningDoesNotExposePath(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	logGTFSCleanupWarning(logger, ingest.GTFSResult{ImportID: 42, CleanupError: errors.New("remove /private/tmp/feed.zip: denied")})
+	if !strings.Contains(logs.String(), "static GTFS temporary cleanup failed") || !strings.Contains(logs.String(), `"gtfs_import_id":42`) {
+		t.Fatalf("cleanup warning = %s", logs.String())
+	}
+	if strings.Contains(logs.String(), "/private/tmp/feed.zip") {
+		t.Fatalf("cleanup warning exposed path: %s", logs.String())
 	}
 }

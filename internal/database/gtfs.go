@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kevinle-00/transit-observatory/internal/gtfs"
+	"github.com/kevinle-00/transit-observatory/internal/observability"
 )
 
 const gtfsImportLockID int64 = 746673696
@@ -31,8 +32,8 @@ func NewGTFSRepository(db *sql.DB) *GTFSRepository {
 func (r *GTFSRepository) StartImport(ctx context.Context, sourceURL string) (int64, error) {
 	var id int64
 	if err := r.db.QueryRowContext(ctx, `
-		INSERT INTO gtfs_imports (status, source_url)
-		VALUES ('running', $1)
+		INSERT INTO gtfs_imports (status, source_url, archive_status)
+		VALUES ('running', $1, 'pending')
 		RETURNING id
 	`, sourceURL).Scan(&id); err != nil {
 		return 0, fmt.Errorf("start GTFS import: %w", err)
@@ -121,14 +122,15 @@ func (r *GTFSRepository) CompleteImport(
 		SET status = 'succeeded', completed_at = now(), requested_at = $2,
 			retrieved_at = $3, source_modified_at = $4, content_sha256 = $5,
 			archive_bytes = $6, metro_archive_bytes = $7, etag = $8,
-			last_modified = $9, route_count = $10, stop_count = $11,
-			station_count = $12, trip_count = $13, stop_time_count = $14,
-			route_station_count = $15, skipped_stop_time_count = $16, is_current = true,
-			skip_reason = NULL, error_message = NULL
-		WHERE id = $1 AND status = 'running'
+			last_modified = $9, content_type = $10, route_count = $11, stop_count = $12,
+			station_count = $13, trip_count = $14, stop_time_count = $15,
+			route_station_count = $16, skipped_stop_time_count = $17, is_current = true,
+			skip_reason = NULL, skip_code = NULL, error_message = NULL,
+			failure_stage = NULL, failure_code = NULL, public_error_message = NULL
+		WHERE id = $1 AND status = 'running' AND archive_status = 'archived'
 	`, importID, download.RequestedAt, download.RetrievedAt, optionalTime(download.ModifiedAt),
 		download.SHA256, download.Size, summary.MetroArchiveBytes, nullableString(download.ETag),
-		nullableString(download.LastModified), summary.RouteCount,
+		nullableString(download.LastModified), nullableString(download.ContentType), summary.RouteCount,
 		summary.StopCount, summary.StationCount, summary.TripCount, summary.StopTimeCount,
 		summary.RouteStationCount, summary.SkippedStopTimeCount)
 	if err != nil {
@@ -144,11 +146,22 @@ func (r *GTFSRepository) CompleteImport(
 }
 
 func (r *GTFSRepository) FailImport(ctx context.Context, importID int64, download *gtfs.Download, importError error) error {
-	messageRunes := []rune(importError.Error())
+	stage := "fetch"
+	if download != nil {
+		stage = "persist"
+	}
+	return r.FailImportWithFailure(ctx, importID, download, observability.Failure{
+		Stage: stage, Code: "ingestion_failed", PublicMessage: "GTFS ingestion failed", Err: importError,
+	})
+}
+
+func (r *GTFSRepository) FailImportWithFailure(ctx context.Context, importID int64, download *gtfs.Download, failure observability.Failure) error {
+	messageRunes := []rune(failure.Error())
 	if len(messageRunes) > maxStoredErrorRunes {
 		messageRunes = messageRunes[:maxStoredErrorRunes]
 	}
-	var requestedAt, retrievedAt, sourceModifiedAt, hash, size, etag, modified any
+	publicMessage := truncateRunes(failure.PublicMessage, maxPublicErrorRunes)
+	var requestedAt, retrievedAt, sourceModifiedAt, hash, size, etag, modified, contentType any
 	if download != nil {
 		requestedAt = download.RequestedAt
 		retrievedAt = download.RetrievedAt
@@ -157,14 +170,20 @@ func (r *GTFSRepository) FailImport(ctx context.Context, importID int64, downloa
 		size = download.Size
 		etag = nullableString(download.ETag)
 		modified = nullableString(download.LastModified)
+		contentType = nullableString(download.ContentType)
 	}
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE gtfs_imports
 		SET status = 'failed', completed_at = now(), error_message = $2,
 			requested_at = $3, retrieved_at = $4, source_modified_at = $5,
-			content_sha256 = $6, archive_bytes = $7, etag = $8, last_modified = $9
+			content_sha256 = $6, archive_bytes = $7, etag = $8, last_modified = $9,
+			content_type = $10, failure_stage = $11, failure_code = $12,
+			public_error_message = $13,
+			archive_status = CASE WHEN archive_status = 'archived' THEN 'archived' ELSE 'failed' END,
+			archive_error = CASE WHEN archive_status = 'archived' THEN NULL ELSE $2 END
 		WHERE id = $1 AND status = 'running'
-	`, importID, string(messageRunes), requestedAt, retrievedAt, sourceModifiedAt, hash, size, etag, modified)
+	`, importID, string(messageRunes), requestedAt, retrievedAt, sourceModifiedAt, hash, size, etag, modified,
+		contentType, failure.Stage, nullableString(failure.Code), nullableString(publicMessage))
 	if err != nil {
 		return fmt.Errorf("mark GTFS import %d failed: %w", importID, err)
 	}
@@ -315,11 +334,12 @@ func markGTFSSkipped(ctx context.Context, tx *sql.Tx, importID int64, download g
 		UPDATE gtfs_imports
 		SET status = 'skipped', completed_at = now(), requested_at = $2,
 			retrieved_at = $3, source_modified_at = $4, content_sha256 = $5,
-			archive_bytes = $6, etag = $7, last_modified = $8,
-			skip_reason = $9, error_message = NULL
-		WHERE id = $1 AND status = 'running'
+			archive_bytes = $6, etag = $7, last_modified = $8, content_type = $9,
+			skip_reason = $10, skip_code = $11, error_message = NULL
+		WHERE id = $1 AND status = 'running' AND archive_status = 'archived'
 	`, importID, download.RequestedAt, download.RetrievedAt, optionalTime(download.ModifiedAt), download.SHA256,
-		download.Size, nullableString(download.ETag), nullableString(download.LastModified), reason)
+		download.Size, nullableString(download.ETag), nullableString(download.LastModified), nullableString(download.ContentType),
+		reason, skipCode(reason))
 	if err != nil {
 		return fmt.Errorf("skip duplicate GTFS import %d: %w", importID, err)
 	}
