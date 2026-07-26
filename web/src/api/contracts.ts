@@ -52,6 +52,26 @@ export interface Alert {
   stations: AlertStation[]
 }
 
+export type AlertStatus = 'present' | 'current' | 'upcoming' | 'historical'
+export type AlertLifecycleStatus = 'present' | 'historical'
+
+export interface AlertRevision extends Alert {
+  is_deleted: boolean
+  closed_at?: string
+}
+
+export interface AlertDetail {
+  id: number
+  source_url: string
+  source_entity_id: string
+  status: AlertLifecycleStatus
+  first_seen_at: string
+  last_seen_at: string
+  closed_at?: string
+  revision_count: number
+  latest_revision: AlertRevision
+}
+
 export interface Line {
   id: string
   short_name: string
@@ -64,6 +84,68 @@ export interface Line {
   present_alert_count: number
   current_alert_count: number
   upcoming_alert_count: number
+}
+
+export interface Station {
+  id: string
+  name: string
+  latitude?: number
+  longitude?: number
+  wheelchair_boarding?: number
+  lines: Line[]
+  present_alert_count: number
+  current_alert_count: number
+  upcoming_alert_count: number
+}
+
+export interface LineDetail {
+  line: Line
+  stations: Station[]
+  alerts: Alert[]
+}
+
+export interface StationDetail {
+  station: Station
+  alerts: Alert[]
+}
+
+export type AnalyticsInterval = 'day' | 'week'
+
+export interface AnalyticsPoint {
+  starts_at: string
+  alert_count: number
+  completed_episode_sample_count: number
+  median_observed_lifetime_seconds?: number
+}
+
+export interface AnalyticsBreakdown {
+  value: string
+  count: number
+}
+
+export const analyticsMetricLimitations = [
+  'Alert counts are continuous feed-observation episodes, not passenger impact or incident counts.',
+  'Observed lifetime is last_seen_at minus first_seen_at for completed episodes and excludes closure-detection latency.',
+  'Historical route associations are resolved against the currently installed GTFS network.',
+] as const
+
+export type AnalyticsMetricLimitation = typeof analyticsMetricLimitations[number]
+
+export interface LineAnalytics {
+  line: Line
+  series: AnalyticsPoint[]
+  causes: AnalyticsBreakdown[]
+  effects: AnalyticsBreakdown[]
+  metric_limitations: AnalyticsMetricLimitation[]
+}
+
+export interface AnalyticsMeta {
+  count: number
+  from: string
+  to: string
+  interval: AnalyticsInterval
+  timezone: 'UTC'
+  metric_basis: 'continuous_feed_observation_episodes'
 }
 
 export type Freshness = 'fresh' | 'stale' | 'unknown' | 'unavailable'
@@ -159,7 +241,33 @@ export interface CollectionEnvelope<T> {
 
 export interface AlertEnvelope {
   data: Alert[]
-  meta: { count: number; status: 'current' | 'upcoming' }
+  meta: { count: number; status: AlertStatus }
+}
+
+export interface HistoricalAlertEnvelope {
+  data: Alert[]
+  meta: {
+    count: number
+    status: 'historical'
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
+}
+
+export interface DataEnvelope<T> {
+  data: T
+}
+
+export interface AnalyticsCollectionEnvelope {
+  data: LineAnalytics[]
+  meta: AnalyticsMeta
+}
+
+export interface AnalyticsDetailEnvelope {
+  data: LineAnalytics
+  meta: AnalyticsMeta & { count: 1 }
 }
 
 export interface StatusEnvelope {

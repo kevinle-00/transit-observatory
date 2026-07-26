@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { alertsQuery, linesQuery, statusQuery } from '../api/queries'
-import { AppHeader } from '../app/AppHeader'
 import { useRoutePage } from '../app/use-route-page'
 import { ErrorState, LoadingState } from '../shared/QueryState'
 import { AlertSection } from './components/AlertSection'
@@ -59,23 +58,16 @@ export function Dashboard() {
 
   if (allUnavailable) {
     return (
-      <div className="app-canvas"><div className="app-frame">
-        <a className="skip-link" href="#main">Skip to main content</a>
-        <AppHeader status="unavailable" />
-        <main id="main" className="workspace unavailable-page">
-          <span className="page-label">Connection interrupted</span>
-          <h1 ref={heading} tabIndex={-1}>The observatory is out of view.</h1>
-          <p>Network status and alert sources could not be reached. This page can be retried without losing your filters.</p>
-          <button type="button" onClick={() => void Promise.all([status.refetch(), lines.refetch(), current.refetch(), upcoming.refetch()])}>Retry all sources</button>
-        </main>
-      </div></div>
+      <main id="main" className="workspace unavailable-page">
+        <span className="page-label">Connection interrupted</span>
+        <h1 ref={heading} tabIndex={-1}>The observatory is out of view.</h1>
+        <p>Network status and alert sources could not be reached. This page can be retried without losing your filters.</p>
+        <button type="button" onClick={() => void Promise.all([status.refetch(), lines.refetch(), current.refetch(), upcoming.refetch()])}>Retry all sources</button>
+      </main>
     )
   }
 
   return (
-    <div className="app-canvas"><div className="app-frame">
-      <a className="skip-link" href="#main">Skip to main content</a>
-      <AppHeader generatedAt={status.data?.data.generated_at} loading={status.isPending} status={status.data?.data.overall_status} />
       <main id="main" className="workspace">
         <section className="page-intro" aria-labelledby="page-title">
           <div><span>Network dashboard</span><h1 id="page-title" ref={heading} tabIndex={-1}>Melbourne rail service</h1></div>
@@ -137,7 +129,5 @@ export function Dashboard() {
           />}
         </div>
       </main>
-      <footer><span>Transit Observatory</span><p>Melbourne Metro · Live service data</p></footer>
-    </div></div>
   )
 }

@@ -1,0 +1,315 @@
+.feature-page {
+  --explorer-accent: var(--indigo);
+  color: var(--text);
+}
+
+.feature-page .explorer-intro {
+  max-width: 52rem;
+  margin-bottom: 1.4rem;
+}
+
+.feature-page .explorer-kicker {
+  color: var(--indigo);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.feature-page .explorer-intro h1 {
+  margin: .15rem 0 .4rem;
+  font-size: clamp(1.75rem, 4vw, 2.35rem);
+  line-height: 1.1;
+}
+
+.feature-page .explorer-intro > p:last-child {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.feature-page .explorer-back {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--indigo);
+  font-weight: 700;
+}
+
+.feature-page .explorer-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  overflow-wrap: anywhere;
+}
+
+.feature-page .explorer-identity code,
+.feature-page .explorer-card code {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.feature-page .explorer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-page .explorer-grid > li {
+  min-width: 0;
+}
+
+.feature-page .explorer-card,
+.feature-page .explorer-panel,
+.feature-page .explorer-facts,
+.feature-page .explorer-filters,
+.feature-page .explorer-empty {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.feature-page .explorer-card {
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem;
+  box-shadow: 0 4px 14px rgba(55, 57, 92, .04);
+}
+
+.feature-page .explorer-card__title {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+}
+
+.feature-page .explorer-card h2,
+.feature-page .explorer-panel h2,
+.feature-page .explorer-empty h2 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.feature-page .explorer-card__title p {
+  margin-top: .15rem;
+  color: var(--muted);
+  font-size: .85rem;
+}
+
+.feature-page .explorer-swatch {
+  width: .7rem;
+  height: .7rem;
+  display: inline-block;
+  flex: 0 0 auto;
+  margin-top: .3rem;
+  border-radius: 50%;
+  background: var(--explorer-accent);
+}
+
+.feature-page .explorer-facts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 1rem;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.feature-page .explorer-facts--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1rem 0;
+}
+
+.feature-page .explorer-facts > div {
+  min-width: 0;
+  padding: .85rem;
+  background: var(--card);
+}
+
+.feature-page .explorer-facts dt {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.feature-page .explorer-facts dd {
+  margin: .2rem 0 0;
+  font-size: 1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.feature-page .explorer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: auto;
+}
+
+.feature-page .explorer-actions a,
+.feature-page .explorer-link-list a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: #465bc1;
+  font-weight: 700;
+}
+
+.feature-page .explorer-actions a {
+  padding: .45rem .7rem;
+  border: 1px solid #d8dbea;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.feature-page .explorer-actions a:hover {
+  background: #f2f3fb;
+}
+
+.feature-page .explorer-panel {
+  min-width: 0;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.feature-page .explorer-filter-error {
+  margin-bottom: 1rem;
+  padding: .75rem;
+  border-radius: 8px;
+  background: #fff0f1;
+  color: #9e3540;
+}
+
+.feature-page .explorer-panel h2 {
+  margin-bottom: .55rem;
+}
+
+.feature-page .explorer-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.feature-page .explorer-link-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.feature-page .explorer-link-list li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feature-page .explorer-link-list .explorer-swatch {
+  margin-right: .5rem;
+}
+
+.feature-page .explorer-serving-lines {
+  margin-top: 1rem;
+}
+
+.feature-page .explorer-serving-lines h3 {
+  margin: 0 0 .35rem;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+.feature-page .explorer-serving-lines ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem .8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-page .explorer-serving-lines li {
+  display: inline-flex;
+  gap: .4rem;
+  overflow-wrap: anywhere;
+}
+
+.feature-page .explorer-filters {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) minmax(11rem, 1fr) auto;
+  align-items: end;
+  gap: .8rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.feature-page .explorer-filters > div {
+  min-width: 0;
+  display: grid;
+  gap: .3rem;
+}
+
+.feature-page .explorer-filters label {
+  color: #515666;
+  font-size: .84rem;
+  font-weight: 700;
+}
+
+.feature-page .explorer-filters input,
+.feature-page .explorer-filters select,
+.feature-page .explorer-filters button {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d6d9e4;
+  border-radius: 8px;
+}
+
+.feature-page .explorer-filters input,
+.feature-page .explorer-filters select {
+  padding: .55rem .7rem;
+  background: #fbfbfe;
+  color: var(--text);
+}
+
+.feature-page .explorer-filters button {
+  padding: .55rem .9rem;
+  background: var(--indigo);
+  color: #fff;
+  font-weight: 700;
+}
+
+.feature-page .explorer-empty {
+  padding: 1.2rem;
+}
+
+.feature-page .explorer-empty p,
+.feature-page .explorer-empty-inline {
+  margin-top: .35rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.feature-page .explorer-caveat {
+  margin-top: 1rem;
+  padding: .8rem 1rem;
+  border-left: 4px solid var(--amber);
+  background: #fff9ee;
+  color: #6d5733;
+  font-size: .85rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 850px) {
+  .feature-page .explorer-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .feature-page .explorer-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .feature-page .explorer-filters button { grid-column: 1 / -1; }
+}
+
+@media (max-width: 650px) {
+  .feature-page .explorer-grid,
+  .feature-page .explorer-columns,
+  .feature-page .explorer-filters { grid-template-columns: minmax(0, 1fr); }
+  .feature-page .explorer-filters button { grid-column: auto; }
+  .feature-page .explorer-facts,
+  .feature-page .explorer-facts--compact { grid-template-columns: minmax(0, 1fr); }
+}

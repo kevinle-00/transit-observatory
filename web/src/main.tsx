@@ -8,6 +8,9 @@ import { RouterProvider } from 'react-router-dom'
 import { createQueryClient } from './app/query-client'
 import { router } from './app/router'
 import './styles.css'
+import './explorer.css'
+import './alerts.css'
+import './analytics.css'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Application root element was not found')

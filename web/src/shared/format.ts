@@ -1,4 +1,4 @@
-import type { ActivePeriod, OverallStatus, Translation } from '../api/contracts'
+import type { ActivePeriod, AnalyticsInterval, OverallStatus, Translation } from '../api/contracts'
 
 const melbourneDateTime = new Intl.DateTimeFormat('en-AU', {
   timeZone: 'Australia/Melbourne',
@@ -11,6 +11,13 @@ const melbourneDate = new Intl.DateTimeFormat('en-AU', {
   weekday: 'long',
   day: 'numeric',
   month: 'long',
+  year: 'numeric',
+})
+
+const utcAnalyticsDate = new Intl.DateTimeFormat('en-AU', {
+  timeZone: 'UTC',
+  day: 'numeric',
+  month: 'short',
   year: 'numeric',
 })
 
@@ -57,6 +64,41 @@ export function humanize(value: string | undefined): string {
 
 export function formatCount(value: number): string {
   return new Intl.NumberFormat('en-AU').format(value)
+}
+
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return 'Duration not available'
+  const totalSeconds = Math.round(seconds)
+  const days = Math.floor(totalSeconds / 86_400)
+  const hours = Math.floor(totalSeconds % 86_400 / 3_600)
+  const minutes = Math.floor(totalSeconds % 3_600 / 60)
+  const remainingSeconds = totalSeconds % 60
+  const parts: string[] = []
+  if (days > 0) parts.push(`${String(days)} ${days === 1 ? 'day' : 'days'}`)
+  if (hours > 0) parts.push(`${String(hours)} ${hours === 1 ? 'hour' : 'hours'}`)
+  if (minutes > 0) parts.push(`${String(minutes)} ${minutes === 1 ? 'minute' : 'minutes'}`)
+  if (remainingSeconds > 0 || parts.length === 0) parts.push(`${String(remainingSeconds)} ${remainingSeconds === 1 ? 'second' : 'seconds'}`)
+  return parts.join(' ')
+}
+
+export function formatUtcAnalyticsBucket(value: string, interval: AnalyticsInterval): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Date not available'
+  const label = utcAnalyticsDate.format(date)
+  return interval === 'week' ? `Week of ${label}` : label
+}
+
+export function dateInputToUtcIso(value: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const iso = `${value}T00:00:00.000Z`
+  const date = new Date(iso)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value ? iso : null
+}
+
+export function utcIsoToDateInput(value: string): string | null {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10)
 }
 
 export function formatOverallStatus(value: OverallStatus): string {

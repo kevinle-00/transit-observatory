@@ -64,9 +64,9 @@ describe('Dashboard', () => {
   it('renders a fresh populated service dashboard', async () => {
     renderDashboard()
     expect(await screen.findByRole('heading', { name: 'Belgrave trains delayed' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Belgrave trains delayed' })).toHaveAttribute('href', '/alerts/41')
     expect(screen.getByRole('heading', { name: 'Coaches replace trains on Sunday' })).toBeVisible()
     expect(screen.getByLabelText('Data freshness: fresh')).toHaveTextContent('Up to date')
-    expect(screen.getByText('Up to date', { selector: '.status-pill' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Whole network' })).toBeVisible()
     expect(screen.getByText('222')).toBeVisible()
     expect(document.title).toBe('Melbourne network | Transit Observatory')
@@ -228,7 +228,6 @@ describe('Dashboard', () => {
     const warning = await screen.findByLabelText('Data freshness warning')
     expect(warning).toHaveTextContent('Updates delayed')
     expect(warning).toHaveTextContent('Some service information may have changed')
-    expect(screen.getByText('Updates delayed', { selector: '.status-pill' })).toBeVisible()
     await userEvent.setup().click(within(warning).getByText('Source checks and reasons'))
     expect(warning).toHaveTextContent('Data Stale, Recent Failure')
   })

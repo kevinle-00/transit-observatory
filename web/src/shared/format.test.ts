@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { cssColor, formatOverallStatus, formatPeriods, humanize, selectTranslation } from './format'
+import {
+  cssColor, dateInputToUtcIso, formatDuration, formatOverallStatus, formatPeriods,
+  formatUtcAnalyticsBucket, humanize, selectTranslation, utcIsoToDateInput,
+} from './format'
 
 describe('display formatters', () => {
   it('selects requested language then English, untagged and first', () => {
@@ -32,5 +35,27 @@ describe('display formatters', () => {
     expect(formatOverallStatus('ok')).toBe('Up to date')
     expect(formatOverallStatus('degraded')).toBe('Updates delayed')
     expect(formatOverallStatus('unavailable')).toBe('Updates unavailable')
+  })
+
+  it('formats finite durations without discarding useful units', () => {
+    expect(formatDuration(0)).toBe('0 seconds')
+    expect(formatDuration(61)).toBe('1 minute 1 second')
+    expect(formatDuration(90_061)).toBe('1 day 1 hour 1 minute 1 second')
+    expect(formatDuration(Number.NaN)).toBe('Duration not available')
+    expect(formatDuration(-1)).toBe('Duration not available')
+  })
+
+  it('labels analytics buckets in UTC', () => {
+    expect(formatUtcAnalyticsBucket('2026-07-20T00:00:00Z', 'day')).toBe('20 July 2026')
+    expect(formatUtcAnalyticsBucket('2026-07-20T00:00:00Z', 'week')).toBe('Week of 20 July 2026')
+    expect(formatUtcAnalyticsBucket('not-a-date', 'day')).toBe('Date not available')
+  })
+
+  it('converts date inputs at the UTC day boundary and rejects invalid dates', () => {
+    expect(dateInputToUtcIso('2026-07-20')).toBe('2026-07-20T00:00:00.000Z')
+    expect(dateInputToUtcIso('2026-02-30')).toBeNull()
+    expect(dateInputToUtcIso('20/07/2026')).toBeNull()
+    expect(utcIsoToDateInput('2026-07-20T23:59:59-07:00')).toBe('2026-07-21')
+    expect(utcIsoToDateInput('invalid')).toBeNull()
   })
 })

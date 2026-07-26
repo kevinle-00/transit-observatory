@@ -1,4 +1,5 @@
 import type { ActivePeriod, Alert, AlertRoute } from '../../api/contracts'
+import { Link } from 'react-router-dom'
 import { cssColor, formatMelbourneTime, formatPeriods, humanize, selectTranslation } from '../../shared/format'
 
 function routeName(route: AlertRoute) {
@@ -46,7 +47,7 @@ export function AlertArticle({ alert, kind }: { alert: Alert; kind: 'current' | 
         </div>
         {alert.severity && <span className="severity-badge">{humanize(alert.severity)}</span>}
       </div>
-      <h3>{headline}</h3>
+      <h3><Link to={`/alerts/${String(alert.id)}`}>{headline}</Link></h3>
       <dl className="alert-facts">
         <div><dt>Timing</dt><dd>{primaryTiming}</dd></div>
         <div><dt>Cause / effect</dt><dd>{humanize(alert.cause)} · {humanize(alert.effect)}</dd></div>
