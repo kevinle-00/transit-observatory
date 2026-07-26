@@ -50,7 +50,7 @@ func run(ctx context.Context, getenv func(string) string, logger *slog.Logger) e
 	defer cancelRequests()
 	server := &http.Server{
 		Handler: api.NewHandler(
-			db, database.NewCurrentAlertReader(db), logger,
+			db, database.NewReadRepository(db), logger,
 			apiConfig.CORSAllowedOrigin, apiConfig.RequestTimeout,
 		),
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
