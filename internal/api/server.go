@@ -125,6 +125,7 @@ func NewHandler(healthChecker HealthChecker, reads ReadRepository, logger *slog.
 		mux:            http.NewServeMux(),
 	}
 	h.mux.HandleFunc("/health", h.handleHealth)
+	h.mux.HandleFunc("/live", h.handleLive)
 	h.mux.HandleFunc("/api/v1/alerts", h.handleAlerts)
 	h.mux.HandleFunc("/api/v1/alerts/{id}", h.handleAlert)
 	h.mux.HandleFunc("/api/v1/alerts/{id}/revisions", h.handleAlertRevisions)
@@ -211,6 +212,14 @@ func (h *Handler) handleHealth(response http.ResponseWriter, request *http.Reque
 	if err := h.healthChecker.PingContext(ctx); err != nil {
 		h.logger.WarnContext(request.Context(), "API health check failed", "error", err)
 		h.writeJSON(response, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+		return
+	}
+	h.writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleLive(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		h.writeError(response, http.StatusBadRequest, "invalid_query", "query parameters are not supported")
 		return
 	}
 	h.writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})

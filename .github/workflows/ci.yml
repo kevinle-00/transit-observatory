@@ -11,7 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:17-alpine
@@ -81,3 +81,36 @@ jobs:
       - name: Build web application
         working-directory: web
         run: npm run build
+
+      - name: Validate deployment scripts
+        run: bash -n scripts/smoke-production.sh
+
+      - name: Build backend production image
+        run: docker build --file deploy/backend.Dockerfile --tag transit-observatory-backend:ci .
+
+      - name: Verify backend image commands
+        run: |
+          docker run --rm --entrypoint /bin/sh transit-observatory-backend:ci -c 'test "$(id -u)" -ne 0 && test -x /app/api && test -x /app/worker'
+          docker run --rm transit-observatory-backend:ci /app/worker 2>&1 | grep -F 'usage: worker'
+
+      - name: Reject missing frontend API build variable
+        run: |
+          if docker build --file deploy/web.Dockerfile --tag transit-observatory-web:invalid .; then
+            echo "web image unexpectedly built without VITE_API_BASE_URL" >&2
+            exit 1
+          fi
+
+      - name: Build frontend production image
+        run: docker build --file deploy/web.Dockerfile --build-arg VITE_API_BASE_URL=https://api.example.com --tag transit-observatory-web:ci .
+
+      - name: Verify frontend image and SPA fallback
+        run: |
+          docker run --detach --name transit-observatory-web-ci --publish 18080:8080 --env PORT=8080 transit-observatory-web:ci
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:18080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18080/ | grep -F '<div id="root"></div>'
+          curl --fail --silent http://127.0.0.1:18080/alerts/123 | grep -F '<div id="root"></div>'
+          curl --fail --silent --head http://127.0.0.1:18080/assets/$(docker exec transit-observatory-web-ci sh -c 'find /srv/assets -type f | head -n 1' | xargs basename) | grep -Fi 'Cache-Control: public, max-age=31536000, immutable'
+          docker rm --force transit-observatory-web-ci

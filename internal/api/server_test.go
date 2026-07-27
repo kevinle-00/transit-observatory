@@ -178,6 +178,18 @@ func TestHandlerHealth(t *testing.T) {
 	}
 }
 
+func TestHandlerLivenessDoesNotDependOnDatabase(t *testing.T) {
+	handler := testHandler(stubHealthChecker{err: errors.New("offline")}, &stubReadRepository{}, nil)
+	response := serve(handler, http.MethodGet, "/live")
+	if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != `{"status":"ok"}` {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+	response = serve(handler, http.MethodGet, "/live?verbose=true")
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("query response = %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestHandlerListsAlertsWithParsedQueryAndFixedNow(t *testing.T) {
 	fixedNow := time.Date(2026, time.July, 26, 12, 30, 0, 0, time.FixedZone("offset", 3600))
 	stub := &stubReadRepository{alertPage: database.AlertPage{Alerts: []database.CurrentAlert{{ID: 7}}}}
