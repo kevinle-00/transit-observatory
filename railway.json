@@ -1,0 +1,110 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "name": "transit-observatory",
+  "services": {
+    "postgres": {
+      "type": "database",
+      "database": "postgresql",
+      "version": "17"
+    },
+    "raw-archive": {
+      "type": "storage",
+      "bucket": true
+    },
+    "api": {
+      "type": "service",
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "deploy/backend.Dockerfile"
+      },
+      "deploy": {
+        "preDeployCommand": "/app/worker migrate",
+        "startCommand": "/app/api",
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      },
+      "variables": {
+        "DATABASE_URL": "${{postgres.DATABASE_URL}}",
+        "CORS_ALLOWED_ORIGIN": "https://${{web.RAILWAY_PUBLIC_DOMAIN}}",
+        "API_REQUEST_TIMEOUT": "15s",
+        "API_SHUTDOWN_TIMEOUT": "10s",
+        "STATUS_ALERT_DATA_MAX_AGE": "10m",
+        "STATUS_ALERT_CHECK_MAX_AGE": "10m",
+        "STATUS_GTFS_DATA_MAX_AGE": "192h",
+        "STATUS_GTFS_CHECK_MAX_AGE": "36h",
+        "STATUS_ALERT_RUN_MAX_DURATION": "5m",
+        "STATUS_GTFS_RUN_MAX_DURATION": "30m",
+        "STATUS_FUTURE_TOLERANCE": "2m",
+        "STATUS_RECENT_FAILURE_LIMIT": "5"
+      }
+    },
+    "web": {
+      "type": "service",
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "deploy/web.Dockerfile"
+      },
+      "deploy": {
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      },
+      "variables": {
+        "VITE_API_BASE_URL": "https://${{api.RAILWAY_PUBLIC_DOMAIN}}"
+      }
+    },
+    "alerts-cron": {
+      "type": "service",
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "deploy/backend.Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "/app/worker ingest-alerts",
+        "cronSchedule": "*/5 * * * *",
+        "restartPolicyType": "NEVER"
+      },
+      "variables": {
+        "DATABASE_URL": "${{postgres.DATABASE_URL}}",
+        "RAW_STORAGE_BACKEND": "s3",
+        "RAW_STORAGE_S3_BUCKET": "${{raw-archive.BUCKET}}",
+        "RAW_STORAGE_S3_REGION": "${{raw-archive.REGION}}",
+        "RAW_STORAGE_S3_ENDPOINT": "${{raw-archive.ENDPOINT}}",
+        "RAW_STORAGE_S3_ACCESS_KEY_ID": "${{raw-archive.ACCESS_KEY_ID}}",
+        "RAW_STORAGE_S3_SECRET_ACCESS_KEY": "${{raw-archive.SECRET_ACCESS_KEY}}",
+        "RAW_STORAGE_S3_PATH_STYLE": "false",
+        "TRANSIT_API_KEY": "<secret>",
+        "TRANSIT_API_KEY_HEADER": "KeyID",
+        "TRANSIT_ALERTS_URL": "https://api.opendata.transport.vic.gov.au/opendata/public-transport/gtfs/realtime/v1/metro/service-alerts",
+        "TRANSIT_HTTP_TIMEOUT": "15s"
+      }
+    },
+    "gtfs-cron": {
+      "type": "service",
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "deploy/backend.Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "/app/worker ingest-gtfs",
+        "cronSchedule": "15 17 * * *",
+        "restartPolicyType": "NEVER"
+      },
+      "variables": {
+        "DATABASE_URL": "${{postgres.DATABASE_URL}}",
+        "RAW_STORAGE_BACKEND": "s3",
+        "RAW_STORAGE_S3_BUCKET": "${{raw-archive.BUCKET}}",
+        "RAW_STORAGE_S3_REGION": "${{raw-archive.REGION}}",
+        "RAW_STORAGE_S3_ENDPOINT": "${{raw-archive.ENDPOINT}}",
+        "RAW_STORAGE_S3_ACCESS_KEY_ID": "${{raw-archive.ACCESS_KEY_ID}}",
+        "RAW_STORAGE_S3_SECRET_ACCESS_KEY": "${{raw-archive.SECRET_ACCESS_KEY}}",
+        "RAW_STORAGE_S3_PATH_STYLE": "false",
+        "GTFS_URL": "https://data.ptv.vic.gov.au/downloads/gtfs.zip",
+        "GTFS_HTTP_TIMEOUT": "10m"
+      }
+    }
+  }
+}
