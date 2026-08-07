@@ -78,7 +78,7 @@ TRANSIT_ALERTS_URL=https://api.opendata.transport.vic.gov.au/opendata/public-tra
 TRANSIT_HTTP_TIMEOUT=15s
 ```
 
-The schedule is every five minutes, Railway's minimum cron interval. Railway skips a trigger if the previous execution is still running. Failed cron containers are not restarted; the next scheduled run retries naturally.
+The schedule is every five minutes, Railway's minimum cron interval. Each run makes up to three attempts for transient transport failures and retryable HTTP responses. Railway skips a trigger if the previous execution is still running. Failed cron containers are not restarted; the next scheduled run retries naturally.
 
 ## GTFS Worker Variables
 

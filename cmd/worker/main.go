@@ -219,6 +219,8 @@ func runIngestAlerts(ctx context.Context, args []string, getenv func(string) str
 		URL:          workerConfig.AlertsURL,
 		APIKey:       workerConfig.APIKey,
 		APIKeyHeader: workerConfig.APIKeyHeader,
+		MaxAttempts:  3,
+		RetryDelay:   time.Second,
 	}
 	logger.Info("fetching service alerts", "url", workerConfig.AlertsURL, "dry_run", *dryRun)
 	if *dryRun {
