@@ -26,7 +26,7 @@ export function AppHeader({ generatedAt, loading = false, status }: AppHeaderPro
       {(generatedAt || loading || status) && (
         <p className="app-header__utility" role="status">
           <Clock3 aria-hidden="true" />
-          <span>{generatedAt ? `Generated ${formatMelbourneTime(generatedAt)}` : loading ? 'Checking latest data' : 'Update time unavailable'}</span>
+          <span>{generatedAt ? `Checked ${formatMelbourneTime(generatedAt)}` : loading ? 'Checking for updates' : 'Update time unavailable'}</span>
           {status && <strong className={`status-pill status-pill--${status}`}>{formatOverallStatus(status)}</strong>}
         </p>
       )}

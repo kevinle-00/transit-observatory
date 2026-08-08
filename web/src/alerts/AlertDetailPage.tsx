@@ -30,7 +30,7 @@ function safeHttpUrl(value: string | null) {
 
 function sourceHost(value: string) {
   try { return new URL(value).hostname }
-  catch { return 'Source feed not available' }
+  catch { return 'Source unavailable' }
 }
 
 export function AlertDetailPage() {
@@ -59,39 +59,39 @@ export function AlertDetailPage() {
     <main id="main" className="workspace feature-page alert-detail-page">
       <p className="alert-feature__back"><Link to="/">Network overview</Link> · <Link to="/alerts">Alert history</Link> · Alert {String(id)}</p>
       <section className="alert-feature__intro" aria-labelledby="alert-detail-title">
-        <div><span>{lifecycle?.status === 'present' ? 'Present lifecycle' : lifecycle?.status === 'historical' ? 'Historical lifecycle' : 'Alert lifecycle'}</span><h1 id="alert-detail-title" ref={heading} tabIndex={-1}>{headline || `Alert ${String(id)}`}</h1></div>
-        <p>This record follows one source alert across accepted feed observations. Source-listed lines and stations are explicit feed references, not inferred passenger impact.</p>
+        <div><span>{lifecycle?.status === 'present' ? 'Current alert' : lifecycle?.status === 'historical' ? 'Past alert' : 'Alert history'}</span><h1 id="alert-detail-title" ref={heading} tabIndex={-1}>{headline || `Alert ${String(id)}`}</h1></div>
+        <p>See how this alert changed while it was active. Affected lines and stations are taken directly from the service update.</p>
       </section>
-      <aside className="alert-feature__limitation">Matches use the currently installed GTFS schedule, not necessarily the schedule in effect when a historical revision was observed. Unmatched source references remain visible.</aside>
+      <aside className="alert-feature__limitation">This page uses the current line and station list. Older alerts may name lines or stations that have since changed.</aside>
 
-      {detail.isPending && <LoadingState label="Loading alert lifecycle" />}
+      {detail.isPending && <LoadingState label="Loading alert history" />}
       {detailNotFound && <ResourceNotFound resource="Alert" backTo="/alerts" backLabel="Browse alert history" />}
-      {detail.error && !detail.data && !detailNotFound && <ErrorState title="Alert detail could not be loaded" message="The lifecycle record is temporarily unavailable." onRetry={() => void detail.refetch()} />}
-      {detail.error && detail.data && !detailNotFound && <ErrorState cached title="Could not refresh alert detail" message="Showing the last available lifecycle record." onRetry={() => void detail.refetch()} />}
+      {detail.error && !detail.data && !detailNotFound && <ErrorState title="Alert details could not be loaded" message="Try again in a moment." onRetry={() => void detail.refetch()} />}
+      {detail.error && detail.data && !detailNotFound && <ErrorState cached title="Could not refresh alert details" message="Showing the last available information." onRetry={() => void detail.refetch()} />}
       {lifecycle && latest && !detailNotFound && <article className="alert-detail-summary">
-        <header><div><span className={`alert-feature__status alert-feature__status--${lifecycle.status}`}>{humanize(lifecycle.status)}</span>{latest.is_deleted && <span className="alert-feature__deleted">Latest revision deleted</span>}</div><strong>{String(lifecycle.revision_count)} revisions</strong></header>
+        <header><div><span className={`alert-feature__status alert-feature__status--${lifecycle.status}`}>{lifecycle.status === 'present' ? 'Current' : 'Past'}</span>{latest.is_deleted && <span className="alert-feature__deleted">Removed from latest update</span>}</div><strong>{String(lifecycle.revision_count)} versions</strong></header>
         <AlertRouteBadges routes={latest.routes} />
         <dl className="alert-feature__facts alert-detail-summary__lifecycle">
-          <div><dt>First observed</dt><dd>{formatMelbourneTime(lifecycle.first_seen_at)}</dd></div>
-          <div><dt>Last observed</dt><dd>{formatMelbourneTime(lifecycle.last_seen_at)}</dd></div>
+          <div><dt>First seen</dt><dd>{formatMelbourneTime(lifecycle.first_seen_at)}</dd></div>
+          <div><dt>Last seen</dt><dd>{formatMelbourneTime(lifecycle.last_seen_at)}</dd></div>
           <div><dt>Closed</dt><dd>{lifecycle.closed_at ? formatMelbourneTime(lifecycle.closed_at) : 'Not closed'}</dd></div>
-          <div><dt>Source entity</dt><dd><code>{lifecycle.source_entity_id}</code></dd></div>
-          <div><dt>Source feed</dt><dd>{sourceHost(lifecycle.source_url)}</dd></div>
+          <div><dt>Source alert ID</dt><dd><code>{lifecycle.source_entity_id}</code></dd></div>
+          <div><dt>Source</dt><dd>{sourceHost(lifecycle.source_url)}</dd></div>
           <div><dt>Cause</dt><dd>{humanize(latest.cause)}</dd></div>
           <div><dt>Effect</dt><dd>{humanize(latest.effect)}</dd></div>
           <div><dt>Severity</dt><dd>{humanize(latest.severity)}</dd></div>
-          <div><dt>Source-listed stations</dt><dd>{stations.length ? stations.join(', ') : 'No stations listed'}</dd></div>
+          <div><dt>Stations listed</dt><dd>{stations.length ? stations.join(', ') : 'No stations listed'}</dd></div>
         </dl>
-        <section className="alert-detail-summary__description" aria-labelledby="source-description-title"><h2 id="source-description-title">Source description</h2>{description ? <p className="alert-feature__source-copy">{description}</p> : <p>No description supplied in the latest revision.</p>}{sourceLink && <a href={sourceLink} target="_blank" rel="noreferrer">Open source link</a>}</section>
-        <section aria-labelledby="active-periods-title"><h2 id="active-periods-title">All active periods</h2><ul className="alert-feature__periods">{formatPeriods(latest.active_periods).map((period, index) => <li key={`${String(index)}-${period}`}>{period}</li>)}</ul></section>
+        <section className="alert-detail-summary__description" aria-labelledby="source-description-title"><h2 id="source-description-title">Service update</h2>{description ? <p className="alert-feature__source-copy">{description}</p> : <p>No description provided in the latest version.</p>}{sourceLink && <a href={sourceLink} target="_blank" rel="noreferrer">Open original update</a>}</section>
+        <section aria-labelledby="active-periods-title"><h2 id="active-periods-title">Active times</h2><ul className="alert-feature__periods">{formatPeriods(latest.active_periods).map((period, index) => <li key={`${String(index)}-${period}`}>{period}</li>)}</ul></section>
       </article>}
 
       {!detailNotFound && <section className="alert-revisions" aria-labelledby="alert-revisions-title">
-        <header><span>Observation record</span><h2 id="alert-revisions-title">Revision timeline</h2></header>
-        {revisions.isPending && <LoadingState label="Loading revision timeline" />}
-        {revisions.error && !revisions.data && <ErrorState title="Revision timeline could not be loaded" message="Lifecycle detail remains available above." onRetry={() => void revisions.refetch()} />}
-        {revisions.error && revisions.data && <ErrorState cached title="Could not refresh revision timeline" message="Showing the last available revisions." onRetry={() => void revisions.refetch()} />}
-        {revisions.data?.data.length === 0 && <div className="empty-state"><strong>No revisions available</strong></div>}
+        <header><span>Alert updates</span><h2 id="alert-revisions-title">Change history</h2></header>
+        {revisions.isPending && <LoadingState label="Loading change history" />}
+        {revisions.error && !revisions.data && <ErrorState title="Change history could not be loaded" message="Alert details are still available above." onRetry={() => void revisions.refetch()} />}
+        {revisions.error && revisions.data && <ErrorState cached title="Could not refresh change history" message="Showing the last available versions." onRetry={() => void revisions.refetch()} />}
+        {revisions.data?.data.length === 0 && <div className="empty-state"><strong>No changes available</strong></div>}
         {revisions.data && revisions.data.data.length > 0 && <AlertTimeline revisions={revisions.data.data} />}
       </section>}
     </main>

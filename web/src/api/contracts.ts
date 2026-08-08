@@ -124,9 +124,9 @@ export interface AnalyticsBreakdown {
 }
 
 export const analyticsMetricLimitations = [
-  'Alert counts are continuous feed-observation episodes, not passenger impact or incident counts.',
-  'Observed lifetime is last_seen_at minus first_seen_at for completed episodes and excludes closure-detection latency.',
-  'Historical route associations are resolved against the currently installed GTFS network.',
+  'An alert is counted once each time it appears. If it disappears and later returns, it is counted again. Counts do not measure incidents or affected passengers.',
+  'For alerts that ended, duration runs from the first to the last time the alert appeared. It does not include the time needed to confirm that the alert had ended.',
+  'Older alerts use the current line list, which may differ from the lines in service when the alert appeared.',
 ] as const
 
 export type AnalyticsMetricLimitation = typeof analyticsMetricLimitations[number]

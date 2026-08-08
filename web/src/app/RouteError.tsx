@@ -14,8 +14,8 @@ export function RouteError() {
       <AppHeader />
       <main id="main" className="route-error">
         <p className="page-label">Unexpected error</p>
-        <h1 ref={heading} tabIndex={-1}>The view could not be assembled.</h1>
-        <p>An unexpected problem interrupted this page. No private error details are displayed.</p>
+        <h1 ref={heading} tabIndex={-1}>We couldn't load this page.</h1>
+        <p>Something went wrong. Try again or return to the network overview.</p>
         <div className="route-actions">
           <button type="button" onClick={() => window.location.reload()}>Retry this page</button>
           <Link to="/">Return to the network overview</Link>

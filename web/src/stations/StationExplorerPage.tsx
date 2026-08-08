@@ -58,7 +58,7 @@ export function StationExplorerPage() {
         </select></div>
         <button type="submit">Search stations</button>
       </form>
-      {!filtersValid && <p className="explorer-filter-error" role="alert">The bookmarked station filters are invalid. Use a station name up to 100 characters and choose a listed line.</p>}
+      {!filtersValid && <p className="explorer-filter-error" role="alert">These station filters aren't valid. Enter a station name up to 100 characters and choose a line from the list.</p>}
       {lines.error && !lines.data && <ErrorState title="Line filter unavailable" message="Station search can still be used without a line filter." onRetry={() => void lines.refetch()} />}
       {lines.error && lines.data && <ErrorState cached title="Could not refresh line choices" message="Showing the last available line choices." onRetry={() => void lines.refetch()} />}
 
@@ -66,7 +66,7 @@ export function StationExplorerPage() {
       {stations.error && !stations.data && <ErrorState title="Stations could not be loaded" message="Try the search again or remove a filter." onRetry={() => void stations.refetch()} />}
       {stations.error && stations.data && <ErrorState cached title="Could not refresh stations" message="Showing the last available search results." onRetry={() => void stations.refetch()} />}
       {stations.data?.data.length === 0 && (
-        <section className="explorer-empty" aria-labelledby="empty-stations-title"><h2 id="empty-stations-title">No stations found</h2><p>There are no stations matching the submitted search and line filter.</p></section>
+        <section className="explorer-empty" aria-labelledby="empty-stations-title"><h2 id="empty-stations-title">No stations found</h2><p>No stations match your search and selected line.</p></section>
       )}
       {stations.data && stations.data.data.length > 0 && (
         <ul className="explorer-grid" aria-label="Station results">

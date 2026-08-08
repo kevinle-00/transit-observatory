@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cssColor, dateInputToUtcIso, formatDuration, formatOverallStatus, formatPeriods,
+  cssColor, dateInputToUtcIso, formatDuration, formatFreshnessReason, formatOverallStatus, formatPeriods,
   formatUtcAnalyticsBucket, humanize, selectTranslation, utcIsoToDateInput,
 } from './format'
 
@@ -21,9 +21,9 @@ describe('display formatters', () => {
   })
 
   it('describes absent and open active periods', () => {
-    expect(formatPeriods([])).toEqual(['No schedule supplied'])
-    expect(formatPeriods([{ position: 0 }])).toEqual(['Ongoing, no boundaries supplied'])
-    expect(formatPeriods([{ position: 0, starts_at: '2026-07-26T10:00:00Z' }])[0]).toContain('no scheduled end')
+    expect(formatPeriods([])).toEqual(['No schedule provided'])
+    expect(formatPeriods([{ position: 0 }])).toEqual(['Ongoing, with no start or end time provided'])
+    expect(formatPeriods([{ position: 0, starts_at: '2026-07-26T10:00:00Z' }])[0]).toContain('no end time provided')
   })
 
   it('humanizes backend classifications without reclassifying them', () => {
@@ -35,6 +35,8 @@ describe('display formatters', () => {
     expect(formatOverallStatus('ok')).toBe('Up to date')
     expect(formatOverallStatus('degraded')).toBe('Updates delayed')
     expect(formatOverallStatus('unavailable')).toBe('Updates unavailable')
+    expect(formatFreshnessReason('data_stale')).toBe('Service information is out of date')
+    expect(formatFreshnessReason('recent_failure')).toBe('Recent update failed')
   })
 
   it('formats finite durations without discarding useful units', () => {

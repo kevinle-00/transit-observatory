@@ -16,7 +16,7 @@ export function AppShell() {
           status={status.isError ? (status.data ? 'degraded' : 'unavailable') : status.data?.data.overall_status}
         />
         <Outlet />
-        <footer><span>Transit Observatory</span><p>Melbourne Metro · Current and historical service observations</p></footer>
+        <footer><span>Transit Observatory</span><p>Melbourne Metro · Current service updates and alert history</p></footer>
       </div>
     </div>
   )

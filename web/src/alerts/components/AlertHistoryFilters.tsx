@@ -33,14 +33,14 @@ export function AlertHistoryFilters({ lines, stations, rangeError, onSubmit, onC
   }
 
   return (
-    <form className="alert-history-filters" aria-label="Historical alert filters" onSubmit={submit}>
+    <form className="alert-history-filters" aria-label="Past alert filters" onSubmit={submit}>
       <div className="alert-history-filters__grid">
         <label>Rail line<select name="line_id" defaultValue={values.lineId}><option value="">All lines</option>{lines?.map((line) => <option key={line.id} value={line.id}>{line.long_name || line.short_name}</option>)}</select></label>
         <label>Station<select name="station_id" defaultValue={values.stationId}><option value="">All stations</option>{stations?.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select></label>
         <label>Cause<input name="cause" maxLength={64} defaultValue={values.cause} placeholder="e.g. Construction" /></label>
         <label>Effect<input name="effect" maxLength={64} defaultValue={values.effect} placeholder="e.g. No service" /></label>
-        <label>From date<input name="from" type="date" defaultValue={values.from} /></label>
-        <label>Through date<input name="to" type="date" defaultValue={values.to} /></label>
+        <label>Start date<input name="from" type="date" defaultValue={values.from} /></label>
+        <label>End date<input name="to" type="date" defaultValue={values.to} /></label>
       </div>
       {rangeError && <p className="alert-history-filters__error" role="alert">{rangeError}</p>}
       <div className="alert-history-filters__actions">

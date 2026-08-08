@@ -7,11 +7,11 @@ function routeName(route: AlertRoute) {
 
 export function AlertRouteBadges({ routes }: { routes: AlertRoute[] }) {
   return (
-    <div className="alert-feature__badges" aria-label="Source-listed lines">
+    <div className="alert-feature__badges" aria-label="Lines listed">
       {routes.length === 0 && <span className="alert-feature__badge alert-feature__badge--neutral">No lines listed</span>}
       {routes.map((route) => (
         <span className="alert-feature__badge" key={route.source_route_id} style={{ '--alert-line': cssColor(route.color) } as React.CSSProperties}>
-          <i aria-hidden="true" />{routeName(route)}{!route.is_matched && <em>unmatched</em>}
+          <i aria-hidden="true" />{routeName(route)}{!route.is_matched && <em>not in current schedule</em>}
         </span>
       ))}
     </div>

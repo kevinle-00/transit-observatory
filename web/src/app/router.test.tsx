@@ -18,7 +18,7 @@ describe('route states', () => {
   it('presents and focuses the branded not-found route', async () => {
     const router = createMemoryRouter([{ path: '*', element: <NotFound /> }], { initialEntries: ['/missing'] })
     render(<RouterProvider router={router} />)
-    const heading = await screen.findByRole('heading', { name: 'This line ends here.' })
+    const heading = await screen.findByRole('heading', { name: "We couldn't find this page." })
     expect(document.title).toBe('Page not found | Transit Observatory')
     expect(heading).toHaveFocus()
     expect(screen.getByRole('link', { name: 'Return to the network overview' })).toHaveAttribute('href', '/')
@@ -30,7 +30,7 @@ describe('route states', () => {
       path: '/', element: <BrokenRoute />, errorElement: <RouteError />,
     }])
     render(<RouterProvider router={router} />)
-    const heading = await screen.findByRole('heading', { name: 'The view could not be assembled.' })
+    const heading = await screen.findByRole('heading', { name: "We couldn't load this page." })
     expect(document.title).toBe('Unexpected error | Transit Observatory')
     expect(heading).toHaveFocus()
     expect(screen.queryByText(/private database/)).not.toBeInTheDocument()

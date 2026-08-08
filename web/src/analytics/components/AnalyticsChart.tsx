@@ -26,29 +26,29 @@ export function AnalyticsChart({ series, interval, lineName }: AnalyticsChartPro
   return (
     <div className="analytics-chart-grid">
       <div className="analytics-chart" aria-hidden={series.length === 0}>
-        {series.length === 0 ? <p>No observation history is available for this range.</p> : (
-          <svg role="img" aria-label={`${lineName} feed-observation episodes and completed samples by ${interval}`} viewBox={`0 0 ${String(width)} ${String(height)}`}>
+        {series.length === 0 ? <p>No alert history is available for this range.</p> : (
+          <svg role="img" aria-label={`${lineName} alerts recorded and alerts that ended by ${interval}`} viewBox={`0 0 ${String(width)} ${String(height)}`}>
             <line x1={left} y1={top + plotHeight} x2={width - 18} y2={top + plotHeight} className="analytics-chart__axis" />
             {series.map((point, index) => {
               const barHeight = point.alert_count / maximum * plotHeight
               const x = left + slot * index + slot * 0.18
-               return <rect key={point.starts_at} x={x} y={top + plotHeight - barHeight} width={Math.max(slot * 0.48, .35)} height={barHeight} className="analytics-chart__bar"><title>{`${formatUtcAnalyticsBucket(point.starts_at, interval)}: ${formatCount(point.alert_count)} episodes`}</title></rect>
+               return <rect key={point.starts_at} x={x} y={top + plotHeight - barHeight} width={Math.max(slot * 0.48, .35)} height={barHeight} className="analytics-chart__bar"><title>{`${formatUtcAnalyticsBucket(point.starts_at, interval)}: ${formatCount(point.alert_count)} alerts recorded`}</title></rect>
             })}
             <polyline points={points} className="analytics-chart__line" />
             {series.map((point, index) => {
               const x = left + slot * index + slot / 2
               const y = top + plotHeight - point.completed_episode_sample_count / maximum * plotHeight
-               return <circle key={point.starts_at} cx={x} cy={y} r={Math.max(Math.min(slot * .18, 4), .4)} className="analytics-chart__point"><title>{`${formatUtcAnalyticsBucket(point.starts_at, interval)}: ${formatCount(point.completed_episode_sample_count)} completed samples`}</title></circle>
+               return <circle key={point.starts_at} cx={x} cy={y} r={Math.max(Math.min(slot * .18, 4), .4)} className="analytics-chart__point"><title>{`${formatUtcAnalyticsBucket(point.starts_at, interval)}: ${formatCount(point.completed_episode_sample_count)} alerts that ended`}</title></circle>
             })}
             <text x={left} y={height - 8}>Earlier</text><text x={width - 18} y={height - 8} textAnchor="end">Later (UTC)</text>
           </svg>
         )}
-        {series.length > 0 && <p className="analytics-chart__legend"><span className="analytics-chart__bar-key" /> Episodes <span className="analytics-chart__line-key" /> Completed samples</p>}
+        {series.length > 0 && <p className="analytics-chart__legend"><span className="analytics-chart__bar-key" /> Alerts recorded <span className="analytics-chart__line-key" /> Alerts that ended</p>}
       </div>
       <div className="analytics-table-wrap">
         <table>
           <caption>{lineName} analytics data</caption>
-          <thead><tr><th scope="col">Bucket (UTC)</th><th scope="col">Episodes</th><th scope="col">Completed samples</th><th scope="col">Median lifetime</th></tr></thead>
+          <thead><tr><th scope="col">Date (UTC)</th><th scope="col">Alerts recorded</th><th scope="col">Alerts that ended</th><th scope="col">Median duration</th></tr></thead>
           <tbody>
             {series.map((point) => <tr key={point.starts_at}>
               <th scope="row">{formatUtcAnalyticsBucket(point.starts_at, interval)}</th>

@@ -66,7 +66,7 @@ describe('Dashboard', () => {
     expect(await screen.findByRole('heading', { name: 'Belgrave trains delayed' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Belgrave trains delayed' })).toHaveAttribute('href', '/alerts/41')
     expect(screen.getByRole('heading', { name: 'Coaches replace trains on Sunday' })).toBeVisible()
-    expect(screen.getByLabelText('Data freshness: fresh')).toHaveTextContent('Up to date')
+    expect(screen.getByLabelText('Update status: up to date')).toHaveTextContent('Up to date')
     expect(screen.getByRole('heading', { name: 'Whole network' })).toBeVisible()
     expect(screen.getByText('222')).toBeVisible()
     expect(document.title).toBe('Melbourne network | Transit Observatory')
@@ -74,7 +74,7 @@ describe('Dashboard', () => {
     const currentAlertRow = screen.getByRole('heading', { name: 'Belgrave trains delayed' }).closest('article')
     expect(currentAlertRow).not.toBeNull()
     await userEvent.setup().click(within(currentAlertRow as HTMLElement).getByText('More details'))
-    expect(within(currentAlertRow as HTMLElement).getByText('Source description')).toBeVisible()
+    expect(within(currentAlertRow as HTMLElement).getByText('Service update')).toBeVisible()
     expect(within(currentAlertRow as HTMLElement).getByText('Richmond')).toBeVisible()
   })
 
@@ -138,7 +138,7 @@ describe('Dashboard', () => {
   it('exposes an accessible loading state while requests are pending', () => {
     vi.mocked(fetch).mockImplementation(() => new Promise(() => undefined))
     renderDashboard()
-    expect(screen.getByText('Checking source freshness').closest('[role="status"]')).toBeInTheDocument()
+    expect(screen.getByText('Checking for updates').closest('[role="status"]')).toBeInTheDocument()
     expect(screen.getByText('Loading current alerts')).toBeVisible()
     expect(screen.getByText('Loading upcoming alerts')).toBeVisible()
   })
@@ -199,7 +199,7 @@ describe('Dashboard', () => {
     responses.current = { ...currentEnvelope, data: [{ ...currentAlert, header: [{ text: 7 }] }] }
     renderDashboard()
     expect(await screen.findByRole('heading', { name: 'Coaches replace trains on Sunday' })).toBeVisible()
-    expect(screen.getByText('Source status is unavailable')).toBeVisible()
+    expect(screen.getByText('Update status is unavailable')).toBeVisible()
     expect(screen.getByText('Line list unavailable')).toBeVisible()
     expect(screen.getByText('Current alerts could not be loaded')).toBeVisible()
   })
@@ -225,18 +225,18 @@ describe('Dashboard', () => {
   it('shows a clear degraded freshness warning with backend reasons', async () => {
     responses.status = degradedStatus
     renderDashboard()
-    const warning = await screen.findByLabelText('Data freshness warning')
+    const warning = await screen.findByLabelText('Update status warning')
     expect(warning).toHaveTextContent('Updates delayed')
-    expect(warning).toHaveTextContent('Some service information may have changed')
-    await userEvent.setup().click(within(warning).getByText('Source checks and reasons'))
-    expect(warning).toHaveTextContent('Data Stale, Recent Failure')
+    expect(warning).toHaveTextContent('Service information may have changed')
+    await userEvent.setup().click(within(warning).getByText('Update details'))
+    expect(warning).toHaveTextContent('Service information is out of date, Recent update failed')
   })
 
   it('labels unmatched source identifiers and uses safe color styling', async () => {
     renderDashboard('/?view=upcoming')
     const alert = (await screen.findByRole('heading', { name: 'Coaches replace trains on Sunday' })).closest('article')
     expect(alert).not.toBeNull()
-    expect(alert).toHaveTextContent('legacy:night-busunmatched')
+    expect(alert).toHaveTextContent('legacy:night-busnot in current schedule')
     expect(alert).toHaveTextContent('line legacy:night-bus, station legacy-stop-7')
     expect(within(alert as HTMLElement).getByText('legacy:night-bus').closest('span')).toHaveStyle('--badge-color: #4c5560')
   })
@@ -255,7 +255,7 @@ describe('Dashboard', () => {
     const identifier = await screen.findByText(longId)
     expect(identifier).toHaveClass('line-badge')
     expect(identifier.closest('.alert-card')).not.toBeNull()
-    expect(screen.getByText(/could not be matched to the current network schedule/)).toHaveClass('match-note')
+    expect(screen.getByText(/Not in current schedule:/).closest('p')).toHaveClass('match-note')
   })
 
   it('bounds all-view previews and changes the URL to view a complete kind', async () => {
@@ -326,7 +326,7 @@ describe('Dashboard', () => {
     failures = { status: 2, lines: 2, current: 2, upcoming: 2 }
     const user = userEvent.setup()
     renderDashboard('/?view=current')
-    await user.click(await screen.findByRole('button', { name: 'Retry all sources' }))
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('heading', { name: 'Belgrave trains delayed' })).toBeVisible()
     expect(screen.getByLabelText('current location')).toHaveTextContent('view=current')
   })

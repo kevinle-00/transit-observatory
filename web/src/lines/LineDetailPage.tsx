@@ -55,7 +55,7 @@ export function LineDetailPage() {
             <div><dt>Stations</dt><dd>{formatCount(line.station_count)}</dd></div>
             <div><dt>Current alerts</dt><dd>{formatCount(current.data?.meta.count ?? line.current_alert_count)}</dd></div>
             <div><dt>Upcoming alerts</dt><dd>{formatCount(upcoming.data?.meta.count ?? line.upcoming_alert_count)}</dd></div>
-            <div><dt>Lifecycle historical alerts</dt><dd>{historical.data ? formatCount(historical.data.meta.total) : historical.isError ? 'Unavailable' : 'Loading'}</dd></div>
+            <div><dt>Past alerts</dt><dd>{historical.data ? formatCount(historical.data.meta.total) : historical.isError ? 'Unavailable' : 'Loading'}</dd></div>
           </dl>
           <nav className="explorer-actions explorer-actions--page" aria-label="Line pages">
             <Link to={searchLink('/', 'line_id', line.id)}>Current service</Link>
@@ -71,20 +71,20 @@ export function LineDetailPage() {
           <div className="explorer-columns">
             <section className="explorer-panel" aria-labelledby="line-current-title"><h2 id="line-current-title">Current alerts</h2>
               {current.isPending && <LoadingState compact label="Loading current alerts" />}
-              {current.error && !current.data && <ErrorState title="Current alerts unavailable" message="This classification could not be loaded." onRetry={() => void current.refetch()} />}
+              {current.error && !current.data && <ErrorState title="Current alerts unavailable" message="We couldn't load current alerts for this line." onRetry={() => void current.refetch()} />}
               {current.error && current.data && <ErrorState cached title="Could not refresh current alerts" message="Showing the last available results." onRetry={() => void current.refetch()} />}
               {current.data && <AlertLinks alerts={current.data.data} empty="No current alerts for this line." />}
             </section>
             <section className="explorer-panel" aria-labelledby="line-upcoming-title"><h2 id="line-upcoming-title">Upcoming alerts</h2>
               {upcoming.isPending && <LoadingState compact label="Loading upcoming alerts" />}
-              {upcoming.error && !upcoming.data && <ErrorState title="Upcoming alerts unavailable" message="This classification could not be loaded." onRetry={() => void upcoming.refetch()} />}
+              {upcoming.error && !upcoming.data && <ErrorState title="Upcoming alerts unavailable" message="We couldn't load upcoming alerts for this line." onRetry={() => void upcoming.refetch()} />}
               {upcoming.error && upcoming.data && <ErrorState cached title="Could not refresh upcoming alerts" message="Showing the last available results." onRetry={() => void upcoming.refetch()} />}
               {upcoming.data && <AlertLinks alerts={upcoming.data.data} empty="No upcoming alerts for this line." />}
             </section>
           </div>
-          {historical.error && !historical.data && <ErrorState title="Historical lifecycle total unavailable" message="Station and live alert details remain available." onRetry={() => void historical.refetch()} />}
-          {historical.error && historical.data && <ErrorState cached title="Could not refresh the historical lifecycle total" message="Showing the last available total." onRetry={() => void historical.refetch()} />}
-          <p className="explorer-caveat">Associations reflect routes and stations listed by the source feed and matches to the current schedule. They may not describe every affected service or station; no impact is inferred beyond those associations.</p>
+          {historical.error && !historical.data && <ErrorState title="Past alert count unavailable" message="Stations and current alerts are still available." onRetry={() => void historical.refetch()} />}
+          {historical.error && historical.data && <ErrorState cached title="Could not refresh the past alert count" message="Showing the last available count." onRetry={() => void historical.refetch()} />}
+          <p className="explorer-caveat">Affected lines and stations come from service updates and may not include every affected service.</p>
         </>
       )}
     </main>

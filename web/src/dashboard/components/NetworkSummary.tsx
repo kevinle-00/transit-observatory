@@ -22,7 +22,7 @@ export function NetworkSummary({ status, line, currentCount, upcomingCount }: Ne
     <section className="network-summary" id="overview-metrics" aria-labelledby="network-summary-title" style={{ '--line-accent': cssColor(line?.color, '#6674dc') } as React.CSSProperties}>
       <div className="network-summary__heading">
         <h2 id="network-summary-title">{context}</h2>
-        {line && <p>Network context: {formatCount(status.static_gtfs.counts.regular_routes)} regular lines, {formatCount(status.static_gtfs.counts.stations)} stations</p>}
+        {line && <p>Across the network: {formatCount(status.static_gtfs.counts.regular_routes)} lines and {formatCount(status.static_gtfs.counts.stations)} stations</p>}
       </div>
       <dl className="summary-metrics">
         <div className="metric-card metric-card--blue"><dt>Current alerts</dt><dd><strong>{formatCount(alertCounts.current)}</strong><span><Activity aria-hidden="true" /></span></dd></div>

@@ -20,8 +20,8 @@ export function AlertSection({ kind, alerts, count, error, loading, cached, prev
   const focusAlertId = useRef<number | null>(null)
   const title = kind === 'current' ? 'Current alerts' : 'Upcoming alerts'
   const deck = kind === 'current'
-    ? 'Service changes active now based on supplied active periods.'
-    : 'Service changes scheduled for a future active period.'
+    ? 'Service changes active now.'
+    : 'Service changes scheduled for later.'
   const visibleAlerts = alerts?.slice(0, visibleCount)
   const hasMore = !preview && Boolean(alerts && visibleCount < alerts.length)
   const hasPreviewOverflow = preview && Boolean(alerts && alerts.length > 5)
@@ -45,10 +45,10 @@ export function AlertSection({ kind, alerts, count, error, loading, cached, prev
         {count !== undefined && <strong aria-label={`${String(count)} ${kind} alerts`}>{count}</strong>}
       </header>
       {loading && <LoadingState label={`Loading ${kind} alerts`} />}
-      {error && !alerts && <ErrorState title={`${title} could not be loaded`} message="This section is temporarily unavailable. Other observatory data may still be current." onRetry={onRetry} />}
-      {cached && <ErrorState cached title={`Could not refresh ${kind} alerts`} message="Showing the last available result while another source check is attempted." onRetry={onRetry} />}
+      {error && !alerts && <ErrorState title={`${title} could not be loaded`} message="Other parts of the dashboard may still be available." onRetry={onRetry} />}
+      {cached && <ErrorState cached title={`Could not refresh ${kind} alerts`} message="Showing the last available results." onRetry={onRetry} />}
       {alerts?.length === 0 && (
-        <div className="empty-state"><strong>No {kind} alerts</strong><p>No service changes in this category match the selected line.</p></div>
+        <div className="empty-state"><strong>No {kind} alerts</strong><p>No {kind} service changes match the selected line.</p></div>
       )}
       <div className="alert-list">
         {visibleAlerts?.map((alert) => <AlertArticle key={alert.id} alert={alert} kind={kind} />)}

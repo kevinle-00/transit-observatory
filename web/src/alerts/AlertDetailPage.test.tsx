@@ -47,14 +47,14 @@ describe('AlertDetailPage', () => {
     renderPage('41')
     expect(await screen.findByRole('heading', { level: 1, name: 'Belgrave trains delayed' })).toHaveFocus()
     expect(requests.map((url) => url.pathname)).toEqual(expect.arrayContaining(['/api/v1/alerts/41', '/api/v1/alerts/41/revisions']))
-    expect(screen.getByText('Historical', { selector: '.alert-feature__status' })).toBeVisible()
+    expect(screen.getByText('Past', { selector: '.alert-feature__status' })).toBeVisible()
     expect(screen.getAllByText('Richmond').length).toBeGreaterThan(0)
-    expect(screen.getByText(/currently installed GTFS schedule/)).toBeVisible()
-    expect(screen.getByText('Source description').nextSibling).toHaveTextContent('Allow an extra 20 minutes')
-    expect(screen.queryByRole('link', { name: 'Open source link' })).not.toBeInTheDocument()
-    const revisions = screen.getAllByText(/Revision [23]/)
-    expect(revisions[0]).toHaveTextContent('Revision 2')
-    expect(revisions[1]).toHaveTextContent('Revision 3')
+    expect(screen.getByText(/uses the current line and station list/)).toBeVisible()
+    expect(screen.getByText('Service update').nextSibling).toHaveTextContent('Allow an extra 20 minutes')
+    expect(screen.queryByRole('link', { name: 'Open original update' })).not.toBeInTheDocument()
+    const revisions = screen.getAllByText(/Version [23]/)
+    expect(revisions[0]).toHaveTextContent('Version 2')
+    expect(revisions[1]).toHaveTextContent('Version 3')
     expect(document.title).toBe('Alert 41 | Transit Observatory')
   })
 
@@ -63,8 +63,8 @@ describe('AlertDetailPage', () => {
     renderPage('41')
     expect(await screen.findByRole('heading', { level: 1, name: 'Belgrave trains delayed' })).toBeVisible()
     const error = await screen.findByRole('alert')
-    expect(error).toHaveTextContent('Revision timeline could not be loaded')
-    expect(screen.getByText('Historical', { selector: '.alert-feature__status' })).toBeVisible()
+    expect(error).toHaveTextContent('Change history could not be loaded')
+    expect(screen.getByText('Past', { selector: '.alert-feature__status' })).toBeVisible()
   })
 
   it('handles a deleted sparse latest revision and rejects unsafe source links', async () => {
@@ -76,21 +76,21 @@ describe('AlertDetailPage', () => {
     revisionsResponse = { data: [sparse], meta: { count: 1 } }
     const user = userEvent.setup()
     renderPage('41')
-    expect(await screen.findByText('Latest revision deleted')).toBeVisible()
+    expect(await screen.findByText('Removed from latest update')).toBeVisible()
     expect(screen.getByRole('heading', { level: 1, name: 'Alert 41' })).toBeVisible()
-    expect(screen.getByText('No description supplied in the latest revision.')).toBeVisible()
+    expect(screen.getByText('No description provided in the latest version.')).toBeVisible()
     expect(screen.getAllByText('No stations listed').length).toBeGreaterThan(0)
-    expect(screen.queryByRole('link', { name: 'Open source link' })).not.toBeInTheDocument()
-    await user.click(screen.getByText('Revision content'))
-    const revision = screen.getByText('Deletion observation').closest('article')
+    expect(screen.queryByRole('link', { name: 'Open original update' })).not.toBeInTheDocument()
+    await user.click(screen.getByText('Version details'))
+    const revision = screen.getByText('Removal recorded').closest('article')
     expect(revision).not.toBeNull()
-    expect(within(revision as HTMLElement).getByText('No description supplied in this revision.')).toBeVisible()
+    expect(within(revision as HTMLElement).getByText('No description provided in this version.')).toBeVisible()
   })
 
   it('renders safe HTTP source links', async () => {
     detailResponse = { data: { ...alertDetailEnvelope.data, latest_revision: { ...alertDetailEnvelope.data.latest_revision, url: [{ text: 'https://transport.example/alert/41' }] } } }
     renderPage('41')
-    expect(await screen.findByRole('link', { name: 'Open source link' })).toHaveAttribute('href', 'https://transport.example/alert/41')
+    expect(await screen.findByRole('link', { name: 'Open original update' })).toHaveAttribute('href', 'https://transport.example/alert/41')
   })
 
   it('presents a missing alert as not found rather than a retryable outage', async () => {

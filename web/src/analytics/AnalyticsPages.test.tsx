@@ -47,7 +47,7 @@ describe('analytics pages', () => {
     renderPage('overview', '/analytics')
     await waitFor(() => expect(screen.getByLabelText('current location')).toHaveTextContent(`from=${expectedFrom.toISOString().slice(0, 10)}`))
     expect(screen.getByLabelText('current location')).toHaveTextContent(`to=${expectedTo.toISOString().slice(0, 10)}`)
-    await user.selectOptions(screen.getByLabelText('Bucket interval'), 'week')
+    await user.selectOptions(screen.getByLabelText('Group by'), 'week')
     expect(screen.getByLabelText('current location')).toHaveTextContent('interval=week')
   })
 
@@ -65,8 +65,8 @@ describe('analytics pages', () => {
   })
 
   it.each([
-    ['/analytics?from=2026-02-30&to=2026-03-04&interval=day', 'Enter complete dates'],
-    ['/analytics?from=2026-07-27&to=2026-07-20&interval=day', 'must be earlier'],
+    ['/analytics?from=2026-02-30&to=2026-03-04&interval=day', 'Enter valid start and end dates'],
+    ['/analytics?from=2026-07-27&to=2026-07-20&interval=day', 'must be before'],
     ['/analytics?from=2025-01-01&to=2026-01-03&interval=day', 'no more than 366 days'],
   ])('blocks invalid ranges before fetch', async (entry, message) => {
     renderPage('overview', entry)
@@ -76,26 +76,26 @@ describe('analytics pages', () => {
 
   it('renders an accessible chart, semantic table, breakdowns, metadata and exact limitations', async () => {
     renderPage('detail', '/analytics/line?line_id=route%3Abelgrave%2F1&from=2026-07-20&to=2026-07-27&interval=day')
-    expect(await screen.findByRole('img', { name: /Belgrave feed-observation episodes and completed samples by day/ })).toBeVisible()
+    expect(await screen.findByRole('img', { name: /Belgrave alerts recorded and alerts that ended by day/ })).toBeVisible()
     const table = screen.getByRole('table', { name: 'Belgrave analytics data' })
-    expect(within(table).getByRole('columnheader', { name: 'Median lifetime' })).toBeVisible()
+    expect(within(table).getByRole('columnheader', { name: 'Median duration' })).toBeVisible()
     expect(within(table).getByText('Not available')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Reported causes' }).parentElement).toHaveTextContent('Technical Problem3')
     expect(screen.getByRole('heading', { name: 'Reported effects' }).parentElement).toHaveTextContent('Significant Delays4')
     for (const limitation of analyticsMetricLimitations) expect(screen.getByText(limitation)).toBeVisible()
     expect(document.title).toBe('Belgrave analytics | Transit Observatory')
     expect(screen.getByRole('heading', { level: 1 })).toHaveFocus()
-    await userEvent.setup().click(screen.getByText('Technical boundaries'))
+    await userEvent.setup().click(screen.getByText('Technical details'))
     expect(screen.getByText('2026-07-20T00:00:00Z')).toBeVisible()
   })
 
   it('reports zero history and omitted medians without inventing values', async () => {
     detailResponse = { ...lineAnalyticsDetailEnvelope, data: { ...lineAnalyticsDetailEnvelope.data, series: [], causes: [], effects: [] } }
     renderPage('detail', '/analytics/line?line_id=route%3Abelgrave%2F1&from=2026-07-20&to=2026-07-27&interval=day')
-    expect(await screen.findByRole('heading', { name: 'No observation history' })).toBeVisible()
-    expect(screen.getByText(/No lifetime or trend can be reported/)).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'No alert history' })).toBeVisible()
+    expect(screen.getByText(/No alerts were found/)).toBeVisible()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
-    expect(screen.getAllByText('No values were observed in this range.')).toHaveLength(2)
+    expect(screen.getAllByText('No data for this range.')).toHaveLength(2)
   })
 
   it('keeps cached analytics visible when a refresh fails', async () => {
@@ -105,7 +105,7 @@ describe('analytics pages', () => {
     await client.refetchQueries({ queryKey: ['line-analytics'] })
     expect(await screen.findByText('Analytics could not be refreshed')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Belgrave' })).toBeVisible()
-    expect(screen.getByText('Showing the last validated response.')).toBeVisible()
+    expect(screen.getByText('Showing the last available results.')).toBeVisible()
   })
 
   it('shows loading and error states and requires a line identifier', async () => {
@@ -116,7 +116,7 @@ describe('analytics pages', () => {
     first.unmount()
     vi.mocked(fetch).mockClear()
     renderPage('detail', '/analytics/line?from=2026-07-20&to=2026-07-27&interval=day')
-    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a valid line')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a line from the analytics overview')
     expect(fetch).not.toHaveBeenCalled()
   })
 })

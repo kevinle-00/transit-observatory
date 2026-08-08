@@ -46,8 +46,8 @@ describe('AlertHistoryPage', () => {
     await user.selectOptions(screen.getByLabelText('Station'), 'station:richmond')
     await user.type(screen.getByLabelText('Cause'), 'CONSTRUCTION')
     await user.type(screen.getByLabelText('Effect'), 'NO_SERVICE')
-    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-07-01' } })
-    fireEvent.change(screen.getByLabelText('Through date'), { target: { value: '2026-08-01' } })
+    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-07-01' } })
+    fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2026-08-01' } })
     await user.click(screen.getByRole('button', { name: 'Apply filters' }))
 
     await waitFor(() => expect(requests.some((url) => url.pathname.endsWith('/alerts') &&
@@ -73,7 +73,7 @@ describe('AlertHistoryPage', () => {
 
   it('blocks an invalid date range before querying', async () => {
     renderPage('/alerts?from=2026-08-01&to=2026-07-01')
-    expect(await screen.findByRole('alert')).toHaveTextContent('From date must be earlier than through date')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Start date must be before end date')
     await waitFor(() => expect(requests.some((url) => url.pathname.endsWith('/stations'))).toBe(true))
     expect(requests.some((url) => url.pathname.endsWith('/alerts'))).toBe(false)
   })
@@ -81,9 +81,9 @@ describe('AlertHistoryPage', () => {
   it('shows empty results and lifecycle guidance without inferring planning status', async () => {
     historyResponse = { data: [], meta: { count: 0, status: 'historical', total: 0, page: 1, page_size: 25, total_pages: 0 } }
     renderPage()
-    expect(await screen.findByText('No historical alerts found')).toBeVisible()
-    expect(screen.getByText(/not classified as planned or unplanned/)).toBeVisible()
-    expect(screen.getByText(/currently installed GTFS schedule/)).toBeVisible()
+    expect(await screen.findByText('No past alerts found')).toBeVisible()
+    expect(screen.getByText(/do not label alerts as planned or unplanned/)).toBeVisible()
+    expect(screen.getByText(/uses the current line and station list/)).toBeVisible()
     expect(document.title).toBe('Alert history | Transit Observatory')
     expect(screen.getByRole('heading', { level: 1 })).toHaveFocus()
   })

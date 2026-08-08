@@ -59,10 +59,10 @@ export function Dashboard() {
   if (allUnavailable) {
     return (
       <main id="main" className="workspace unavailable-page">
-        <span className="page-label">Connection interrupted</span>
-        <h1 ref={heading} tabIndex={-1}>The observatory is out of view.</h1>
-        <p>Network status and alert sources could not be reached. This page can be retried without losing your filters.</p>
-        <button type="button" onClick={() => void Promise.all([status.refetch(), lines.refetch(), current.refetch(), upcoming.refetch()])}>Retry all sources</button>
+        <span className="page-label">Connection problem</span>
+        <h1 ref={heading} tabIndex={-1}>We couldn't load the dashboard.</h1>
+        <p>We couldn't reach the latest service updates. Your filters are still saved.</p>
+        <button type="button" onClick={() => void Promise.all([status.refetch(), lines.refetch(), current.refetch(), upcoming.refetch()])}>Try again</button>
       </main>
     )
   }
@@ -71,13 +71,13 @@ export function Dashboard() {
       <main id="main" className="workspace">
         <section className="page-intro" aria-labelledby="page-title">
           <div><span>Network dashboard</span><h1 id="page-title" ref={heading} tabIndex={-1}>Melbourne rail service</h1></div>
-          <p>Current disruptions and upcoming changes from the latest accepted transport feeds.</p>
+          <p>Current and upcoming service changes across Melbourne's rail network.</p>
         </section>
 
-        <section className="freshness-strip" aria-label="Source freshness">
-          {status.isPending && <LoadingState compact label="Checking source freshness" />}
-          {status.error && !status.data && <ErrorState title="Source status is unavailable" message="Alerts can still load independently, but their freshness cannot be confirmed." onRetry={() => void status.refetch()} />}
-          {status.error && status.data && <ErrorState cached title="Could not refresh source status" message="Showing the last available source assessment." onRetry={() => void status.refetch()} />}
+        <section className="freshness-strip" aria-label="Update status">
+          {status.isPending && <LoadingState compact label="Checking for updates" />}
+          {status.error && !status.data && <ErrorState title="Update status is unavailable" message="Alerts may still load, but we can't confirm how current they are." onRetry={() => void status.refetch()} />}
+          {status.error && status.data && <ErrorState cached title="Could not check for updates" message="Showing the last available status." onRetry={() => void status.refetch()} />}
           {status.data && <FreshnessNotice status={status.data.data} />}
         </section>
 

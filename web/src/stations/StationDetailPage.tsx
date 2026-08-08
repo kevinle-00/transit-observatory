@@ -15,9 +15,9 @@ function queryLink(pathname: string, key: string, value: string | number) {
 }
 
 function wheelchairLabel(value: number | undefined) {
-  if (value === 1) return 'Wheelchair boarding indicated'
-  if (value === 2) return 'Wheelchair boarding not available'
-  return 'No wheelchair boarding information supplied'
+  if (value === 1) return 'Wheelchair boarding available'
+  if (value === 2) return 'Wheelchair boarding unavailable'
+  return 'Wheelchair boarding information unavailable'
 }
 
 function AlertList({ alerts, empty }: { alerts: Alert[]; empty: string }) {
@@ -70,18 +70,18 @@ export function StationDetailPage() {
           <div className="explorer-columns">
             <section className="explorer-panel" aria-labelledby="station-current-title"><h2 id="station-current-title">Current alerts</h2>
               {current.isPending && <LoadingState compact label="Loading current alerts" />}
-              {current.error && !current.data && <ErrorState title="Current alerts unavailable" message="This classification could not be loaded." onRetry={() => void current.refetch()} />}
+              {current.error && !current.data && <ErrorState title="Current alerts unavailable" message="We couldn't load current alerts for this station." onRetry={() => void current.refetch()} />}
               {current.error && current.data && <ErrorState cached title="Could not refresh current alerts" message="Showing the last available results." onRetry={() => void current.refetch()} />}
               {current.data && <AlertList alerts={current.data.data} empty="No current alerts associated with this station." />}
             </section>
             <section className="explorer-panel" aria-labelledby="station-upcoming-title"><h2 id="station-upcoming-title">Upcoming alerts</h2>
               {upcoming.isPending && <LoadingState compact label="Loading upcoming alerts" />}
-              {upcoming.error && !upcoming.data && <ErrorState title="Upcoming alerts unavailable" message="This classification could not be loaded." onRetry={() => void upcoming.refetch()} />}
+              {upcoming.error && !upcoming.data && <ErrorState title="Upcoming alerts unavailable" message="We couldn't load upcoming alerts for this station." onRetry={() => void upcoming.refetch()} />}
               {upcoming.error && upcoming.data && <ErrorState cached title="Could not refresh upcoming alerts" message="Showing the last available results." onRetry={() => void upcoming.refetch()} />}
               {upcoming.data && <AlertList alerts={upcoming.data.data} empty="No upcoming alerts associated with this station." />}
             </section>
           </div>
-          <p className="explorer-caveat">Station impact is inferred only from source-listed station and route associations matched by the backend. An association does not confirm platform-level impact or that every affected service is listed.</p>
+          <p className="explorer-caveat">Affected lines and stations come from service updates and may not include every service or platform.</p>
         </>
       )}
     </main>

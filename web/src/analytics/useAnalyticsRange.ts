@@ -32,8 +32,8 @@ export function useAnalyticsRange(): AnalyticsRange {
   const to = dateInputToUtcIso(toInput)
   let error: string | null = null
 
-  if (!from || !to) error = 'Enter complete dates in YYYY-MM-DD format.'
-  else if (new Date(from).getTime() >= new Date(to).getTime()) error = 'The from date must be earlier than the to date.'
+  if (!from || !to) error = 'Enter valid start and end dates.'
+  else if (new Date(from).getTime() >= new Date(to).getTime()) error = 'Start date must be before end date.'
   else if (new Date(to).getTime() - new Date(from).getTime() > 366 * dayMilliseconds) error = 'Choose a date range of no more than 366 days.'
 
   useEffect(() => {

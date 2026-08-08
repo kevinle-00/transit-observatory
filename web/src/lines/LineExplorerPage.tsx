@@ -25,12 +25,12 @@ export function LineExplorerPage() {
       <header className="explorer-intro">
         <p className="explorer-kicker">Network directory</p>
         <h1 ref={heading} tabIndex={-1}>Rail lines</h1>
-        <p>Explore stations, live alert classifications, and recent feed-observation history for each line.</p>
+        <p>Explore stations, current service alerts, and recent alert history for each line.</p>
       </header>
 
-      {analytics.isPending && <LoadingState compact label="Loading historical episode counts" />}
-      {analytics.error && !analytics.data && <ErrorState title="Historical episodes are unavailable" message="Line and live alert counts can still be viewed." onRetry={() => void analytics.refetch()} />}
-      {analytics.error && analytics.data && <ErrorState cached title="Could not refresh historical episodes" message="Showing the last available 30-day episode counts." onRetry={() => void analytics.refetch()} />}
+      {analytics.isPending && <LoadingState compact label="Loading past alert counts" />}
+      {analytics.error && !analytics.data && <ErrorState title="Past alert counts are unavailable" message="Lines and current alerts can still be viewed." onRetry={() => void analytics.refetch()} />}
+      {analytics.error && analytics.data && <ErrorState cached title="Could not refresh past alert counts" message="Showing the last available 30-day counts." onRetry={() => void analytics.refetch()} />}
 
       {lines.isPending && <LoadingState label="Loading rail lines" />}
       {lines.error && !lines.data && <ErrorState title="Rail lines could not be loaded" message="The line directory is currently unavailable." onRetry={() => void lines.refetch()} />}
@@ -38,7 +38,7 @@ export function LineExplorerPage() {
       {lines.data?.data.length === 0 && (
         <section className="explorer-empty" aria-labelledby="empty-lines-title">
           <h2 id="empty-lines-title">No rail lines available</h2>
-          <p>The current network schedule did not return any lines.</p>
+          <p>No rail lines are available in the current schedule.</p>
         </section>
       )}
       {lines.data && lines.data.data.length > 0 && (
@@ -56,11 +56,11 @@ export function LineExplorerPage() {
                     <div><dt>Stations</dt><dd>{formatCount(line.station_count)}</dd></div>
                     <div><dt>Current alerts</dt><dd>{formatCount(line.current_alert_count)}</dd></div>
                     <div><dt>Upcoming alerts</dt><dd>{formatCount(line.upcoming_alert_count)}</dd></div>
-                    <div><dt>Historical episodes, last 30 days</dt><dd>{episodeCount === undefined ? 'Not available' : formatCount(episodeCount)}</dd></div>
+                    <div><dt>Alerts recorded, last 30 days</dt><dd>{episodeCount === undefined ? 'Not available' : formatCount(episodeCount)}</dd></div>
                   </dl>
                   <nav className="explorer-actions" aria-label={`${line.long_name || line.short_name} links`}>
                     <Link to={lineSearch('/lines/detail', line.id)}>Line details</Link>
-                    <Link to={lineSearch('/analytics/line', line.id)}>Episode analytics</Link>
+                    <Link to={lineSearch('/analytics/line', line.id)}>Alert analytics</Link>
                   </nav>
                 </article>
               </li>
@@ -68,7 +68,7 @@ export function LineExplorerPage() {
           })}
         </ul>
       )}
-      <p className="explorer-caveat">Historical counts are feed-observation episodes, not incidents or passenger impacts. Current and upcoming are feed classifications; no planned or unplanned category is inferred.</p>
+      <p className="explorer-caveat">Past counts show recorded alerts, not incidents or affected passengers. Alerts are grouped by when they apply; we do not label them planned or unplanned.</p>
     </main>
   )
 }

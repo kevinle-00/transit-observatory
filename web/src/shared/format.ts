@@ -48,11 +48,11 @@ export function formatMelbourneDate(value: Date): string {
 }
 
 export function formatPeriods(periods: ActivePeriod[]): string[] {
-  if (periods.length === 0) return ['No schedule supplied']
+  if (periods.length === 0) return ['No schedule provided']
   return periods.map((period) => {
-    if (!period.starts_at && !period.ends_at) return 'Ongoing, no boundaries supplied'
+    if (!period.starts_at && !period.ends_at) return 'Ongoing, with no start or end time provided'
     if (!period.starts_at && period.ends_at) return `Active until ${formatMelbourneTime(period.ends_at)}`
-    if (period.starts_at && !period.ends_at) return `From ${formatMelbourneTime(period.starts_at)}, no scheduled end`
+    if (period.starts_at && !period.ends_at) return `Starts ${formatMelbourneTime(period.starts_at)}, with no end time provided`
     return `${formatMelbourneTime(period.starts_at ?? '')} to ${formatMelbourneTime(period.ends_at ?? '')}`
   })
 }
@@ -60,6 +60,22 @@ export function formatPeriods(periods: ActivePeriod[]): string[] {
 export function humanize(value: string | undefined): string {
   if (!value) return 'Not specified'
   return value.toLowerCase().split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+}
+
+const freshnessReasons: Record<string, string> = {
+  data_unavailable: 'Service information unavailable',
+  data_timestamp_unknown: 'Update time unavailable',
+  data_timestamp_in_future: 'Update time is invalid',
+  data_stale: 'Service information is out of date',
+  check_unavailable: 'Latest update check unavailable',
+  check_timestamp_in_future: 'Update check time is invalid',
+  check_stale: 'Update check is overdue',
+  run_overdue: 'Update is taking longer than expected',
+  recent_failure: 'Recent update failed',
+}
+
+export function formatFreshnessReason(value: string): string {
+  return freshnessReasons[value] ?? humanize(value)
 }
 
 export function formatCount(value: number): string {

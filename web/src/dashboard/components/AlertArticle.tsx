@@ -41,7 +41,7 @@ export function AlertArticle({ alert, kind }: { alert: Alert; kind: 'current' | 
           {alert.routes.length === 0 && <span className="line-badge line-badge--neutral">Network notice</span>}
           {alert.routes.map((route) => (
             <span className="line-badge" key={route.source_route_id} style={{ '--badge-color': cssColor(route.color) } as React.CSSProperties}>
-              <i aria-hidden="true" />{routeName(route)}{!route.is_matched && <em>unmatched</em>}
+              <i aria-hidden="true" />{routeName(route)}{!route.is_matched && <em>not in current schedule</em>}
             </span>
           ))}
         </div>
@@ -56,17 +56,17 @@ export function AlertArticle({ alert, kind }: { alert: Alert; kind: 'current' | 
         <details className="alert-details">
           <summary>More details</summary>
           <div className="alert-details__content">
-            {description && <div className="alert-card__description"><strong>Source description</strong><p>{description}</p></div>}
+            {description && <div className="alert-card__description"><strong>Service update</strong><p>{description}</p></div>}
             <dl>
               <div><dt>Stations</dt><dd>{namedStations.length > 0 ? namedStations.join(', ') : 'No specific stations listed'}</dd></div>
               {additionalPeriods.length > 0 && <div><dt>Additional periods</dt><dd>{additionalPeriods.map((period) => <span key={period}>{period}</span>)}</dd></div>}
-              <div><dt>Last observed</dt><dd>{formatMelbourneTime(alert.revision_last_seen_at)}</dd></div>
+              <div><dt>Last seen</dt><dd>{formatMelbourneTime(alert.revision_last_seen_at)}</dd></div>
             </dl>
             {(unmatchedRoutes.length > 0 || unmatchedStations.length > 0) && (
-              <p className="match-note"><strong>Unmatched reference:</strong> {[
+              <p className="match-note"><strong>Not in current schedule:</strong> {[
                 ...unmatchedRoutes.map((route) => `line ${route.source_route_id}`),
                 ...unmatchedStations.map((station) => `station ${station.source_stop_id}`),
-              ].join(', ')} could not be matched to the current network schedule.</p>
+              ].join(', ')}.</p>
             )}
           </div>
         </details>
